@@ -27,39 +27,6 @@ This repository contains the **initial mono-repo skeleton** for HealthComm, stru
 - **Folder structure optimized** for 2–3 developers working collaboratively
 
 ---
-
-## **Folder Structure**
-
-healthcomm/
-├─ web/ # Frontend (React + TS + Tailwind)
-│ ├─ src/
-│ │ ├─ components/ # Reusable UI components
-│ │ ├─ pages/ # Role-based pages
-│ │ ├─ services/ # API clients (Firebase, Azure)
-│ │ ├─ hooks/ # Custom React hooks
-│ │ └─ utils/ # Helper functions
-│ ├─ index.html
-│ ├─ package.json
-│ ├─ tailwind.config.js
-│ └─ postcss.config.js
-├─ bridge/ # Backend bridge for real-time data processing
-│ ├─ src/
-│ │ ├─ index.js
-│ │ ├─ kafkaConsumer.js
-│ │ ├─ azureAnomalyClient.js
-│ │ └─ firebaseWriter.js
-│ └─ .env
-├─ functions/ # Firebase functions
-│ ├─ src/
-│ │ ├─ index.js
-│ │ ├─ auth.js
-│ │ └─ notifications.js
-├─ infra/ # Deployment and infrastructure scripts
-│ ├─ README.md
-│ ├─ deploy.sh
-│ └─ docker-compose.yml
-└─ README.md
-
 ## **Requirements**
 
 - **Node.js** v22.x or higher
