@@ -1,0 +1,9 @@
+packages:
+  - bridge
+  - functions
+  - web
+
+onlyBuiltDependencies:
+  - '@firebase/util'
+  - esbuild
+  - protobufjs
