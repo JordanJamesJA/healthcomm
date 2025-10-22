@@ -1,12 +1,24 @@
-import React from "react";
-import Dashboard from "./pages/Dashboard/Dashboard";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
+import Signup from "./pages/auth/Signup";
+import { AuthProvider } from "./contexts/AuthContext";
 
-const App: React.FC = () => {
+function App() {
   return (
-    <div>
-      <Dashboard />
-    </div>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          {/* Home Page */}
+          <Route path="/" element={<Home />} />
+
+          {/* Signup */}
+          <Route path="/signup/:role" element={<Signup />} />
+
+          {/* You can add login/dashboard routes later */}
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
-};
+}
 
 export default App;

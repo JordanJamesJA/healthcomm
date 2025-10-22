@@ -1,17 +1,17 @@
-// services/firebase.ts
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAvcvcLCKfXUF8WB77w_0q_NKeZe6QR3wA",
-  authDomain: "healthcomm-bridge.firebaseapp.com",
-  projectId: "healthcomm-bridge",
-  storageBucket: "healthcomm-bridge.firebasestorage.app",
-  messagingSenderId: "843637832607",
-  appId: "1:843637832607:web:2768dee07258dc7478dbaa"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
