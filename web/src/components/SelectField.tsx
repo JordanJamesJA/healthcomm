@@ -11,6 +11,7 @@ interface SelectFieldProps {
 
 const SelectField: React.FC<SelectFieldProps> = ({
   label,
+  name,
   value,
   onChange,
   options,
@@ -19,6 +20,7 @@ const SelectField: React.FC<SelectFieldProps> = ({
   <div>
     <label className="block text-gray-700 mb-1">{label}</label>
     <select
+      name={name} 
       value={value}
       onChange={onChange}
       required={required}

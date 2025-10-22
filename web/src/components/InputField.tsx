@@ -12,6 +12,7 @@ interface InputFieldProps {
 
 const InputField: React.FC<InputFieldProps> = ({
   label,
+  name,
   type = "text",
   value,
   onChange,
@@ -19,8 +20,12 @@ const InputField: React.FC<InputFieldProps> = ({
   required = true,
 }) => (
   <div>
-    <label className="block text-gray-700 mb-1">{label}</label>
+    <label htmlFor={name} className="block text-gray-700 mb-1">
+      {label}
+    </label>
     <input
+      id={name}
+      name={name}
       type={type}
       value={value}
       onChange={onChange}
