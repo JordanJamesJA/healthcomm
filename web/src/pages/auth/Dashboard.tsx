@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import { FaUserMd, FaPlug } from "react-icons/fa";
 import DashboardHeader from "../../components/DashboardHeader";
 import AlertBox from "../../components/AlertBox";
@@ -6,24 +7,32 @@ import InfoCard from "../../components/InfoCard";
 import VitalStat from "../../components/VitalStat";
 import TimeRangeSelector from "../../components/TimeRangeSelector";
 import VitalChart from "../../components/VitalChart";
+import AuthContext from "../../contexts/AuthContext";
 
 export default function Dashboard() {
+  const authContext = useContext(AuthContext);
+
+  // ✅ Type safety (Option 1)
+  if (!authContext) {
+    throw new Error("Dashboard must be used within an AuthProvider");
+  }
+
+  const { user, loading } = authContext;
   const [range, setRange] = useState("6h");
+  const navigate = useNavigate();
 
-  return (
-    <div className="min-h-screen bg-white text-gray-900 px-8 py-10">
-      <DashboardHeader />
+  if (loading) return <p>Loading...</p>;
 
-      <section>
-        <h2 className="text-2xl font-bold mb-1">
-          Welcome, Grace Cummins{" "}
-          <span className="font-normal text-md text-gray-600">| PATIENT</span>
-        </h2>
-        <p className="text-gray-600 mb-6">
-          Monitor your health vitals in real-time
-        </p>
-      </section>
+  if (!user) {
+    navigate("/"); // redirect to home/login if not logged in
+    return null;
+  }
 
+  const role = user.role; // assuming role is stored in user object
+
+  // Role-specific renderers
+  const renderPatientDashboard = () => (
+    <>
       <AlertBox
         title="Vital Sign Alert!"
         message="Blood Oxygen spike detected: 90.1"
@@ -38,13 +47,13 @@ export default function Dashboard() {
               <span className="text-green-600 font-medium">GPFGK9F4</span>
             </li>
             <li>
-              <strong>Blood Type:</strong> B+
+              <strong>Blood Type:</strong> {user.bloodType || "N/A"}
             </li>
             <li>
-              <strong>Date of Birth:</strong> 1998-09-21
+              <strong>Date of Birth:</strong> {user.dateOfBirth || "N/A"}
             </li>
             <li>
-              <strong>Allergies:</strong> Bees
+              <strong>Allergies:</strong> {user.knownAllergies || "None"}
             </li>
           </ul>
         </InfoCard>
@@ -53,7 +62,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             <FaUserMd className="text-green-600" />
             <p className="text-sm text-gray-600">
-              No healthcare professional connected
+              {user.assignedDoctor || "No healthcare professional connected"}
             </p>
           </div>
         </InfoCard>
@@ -62,7 +71,9 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             <FaPlug className="text-green-600" />
             <p className="text-sm text-gray-600">
-              Device Connected: HealthBand X2
+              {user.connectedDevices && user.connectedDevices.length > 0
+                ? `Device Connected: ${user.connectedDevices.join(", ")}`
+                : "No connected devices"}
             </p>
           </div>
         </InfoCard>
@@ -101,6 +112,58 @@ export default function Dashboard() {
           ))}
         </div>
       </section>
+    </>
+  );
+
+  const renderCaretakerDashboard = () => (
+    <div>
+      <h2 className="text-2xl font-bold mb-4">Caretaker Dashboard</h2>
+      <p>
+        Manage your assigned patients and monitor their health statuses here.
+      </p>
+    </div>
+  );
+
+  const renderMedicalDashboard = () => (
+    <div>
+      <h2 className="text-2xl font-bold mb-4">
+        Medical Professional Dashboard
+      </h2>
+      <p>View patients, assigned cases, and medical stats.</p>
+    </div>
+  );
+
+  const renderRoleDashboard = () => {
+    switch (role) {
+      case "patient":
+        return renderPatientDashboard();
+      case "caretaker":
+        return renderCaretakerDashboard();
+      case "medical":
+        return renderMedicalDashboard();
+      default:
+        return <p className="text-red-500">Invalid role</p>;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-white text-gray-900 px-8 py-10">
+      <DashboardHeader />
+      <section>
+        <h2 className="text-2xl font-bold mb-1">
+          Welcome, {user.firstName}{" "}
+          <span className="font-normal text-md text-gray-600">
+            | {role?.toUpperCase()}
+          </span>
+        </h2>
+        <p className="text-gray-600 mb-6">
+          {role === "patient"
+            ? "Monitor your health vitals in real-time"
+            : "Access your dashboard tools"}
+        </p>
+      </section>
+
+      {renderRoleDashboard()}
     </div>
   );
 }

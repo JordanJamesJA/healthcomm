@@ -8,7 +8,6 @@ import InputField from "../../components/InputField";
 import SelectField from "../../components/SelectField";
 import MultiSelectField from "../../components/MultiSelectField";
 
-// 1️⃣ Define a type for your form data
 interface FormData {
   firstName: string;
   lastName: string;
@@ -39,7 +38,6 @@ const Signup: React.FC = () => {
   const navigate = useNavigate();
   const { role } = useParams<{ role: string }>();
 
-  // 2️⃣ Use typed state
   const [formData, setFormData] = useState<FormData>({
     firstName: "",
     lastName: "",
@@ -51,7 +49,7 @@ const Signup: React.FC = () => {
   // role-specific multi-select
   const [chronicConditions, setChronicConditions] = useState<string[]>([]);
 
-  // 3️⃣ Typed handleChange
+  // Typed handleChange
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -64,10 +62,9 @@ const Signup: React.FC = () => {
     });
   };
 
-  // 4️⃣ Submit handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!role) return; // safeguard
+    if (!role) return; 
 
     try {
       const { email, password, ...profile } = formData;
