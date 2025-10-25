@@ -1,11 +1,13 @@
 import { useContext } from "react";
-import AuthContext from "../contexts/AuthContext"; // adjust path if needed
+import AuthContext from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { FaHeartbeat } from "react-icons/fa";
+import { useDarkMode } from "../contexts/useDarkMode";
 
 export default function DashboardHeader() {
   const authContext = useContext(AuthContext);
   const navigate = useNavigate();
+  const { darkMode, toggleDarkMode } = useDarkMode();
 
   if (!authContext) {
     throw new Error("DashboardHeader must be used within an AuthProvider");
@@ -21,13 +23,19 @@ export default function DashboardHeader() {
       </div>
 
       <div className="flex gap-3">
-        <button className="border px-4 py-1 rounded-lg text-sm hover:bg-gray-100">
-          Light
+        {/* Dark Mode Toggle */}
+        <button
+          onClick={toggleDarkMode}
+          className="border px-4 py-1 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          {darkMode ? "Dark" : "Light"}
         </button>
+
+        {/* Logout */}
         <button
           onClick={() => {
             logout();
-            navigate("/"); 
+            navigate("/");
           }}
           className="bg-green-600 text-white px-4 py-1 rounded-lg text-sm hover:bg-green-700"
         >
