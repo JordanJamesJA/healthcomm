@@ -46,14 +46,12 @@ const Signup: React.FC = () => {
     password: "",
   });
 
-  // role-specific multi-select
   const [chronicConditions, setChronicConditions] = useState<string[]>([]);
 
-  // Typed handleChange
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    const target = e.target as HTMLInputElement; // cast target
+    const target = e.target as HTMLInputElement; 
     const { name, type, value, checked } = target;
 
     setFormData({
@@ -97,7 +95,6 @@ const Signup: React.FC = () => {
     }
   };
 
-  // 5️⃣ Render role-specific fields
   const renderRoleFields = () => {
     switch (role) {
       case "patient":
@@ -219,11 +216,9 @@ const Signup: React.FC = () => {
     }
   };
 
-  // Optional helper to capitalize safely
   const capitalize = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 
-  // In your return
   return (
     <AuthForm
       title={`Sign Up as ${capitalize(role)}`}
