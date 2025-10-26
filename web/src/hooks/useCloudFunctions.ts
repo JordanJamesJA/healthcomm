@@ -52,6 +52,40 @@ interface VerifyMedicalCredentialsResponse {
   message: string;
 }
 
+interface AssignPatientToDoctorRequest {
+  patientId: string;
+  preferredSpecialization?: string;
+  urgency?: "routine" | "urgent" | "emergency";
+}
+
+interface AssignPatientToDoctorResponse {
+  success: boolean;
+  doctorId?: string;
+  doctorName?: string;
+  reason?: {
+    score: number;
+    factors: {
+      specializationMatch: boolean;
+      matchedConditions: string[];
+      availabilityBonus: number;
+      workloadScore: number;
+      experienceScore: number;
+    };
+    assignedBy: string;
+    timestamp: unknown;
+  };
+  message?: string;
+}
+
+interface UpdateDoctorAvailabilityRequest {
+  availability: "available" | "busy" | "offline";
+}
+
+interface UpdateDoctorAvailabilityResponse {
+  success: boolean;
+  availability: string;
+}
+
 /**
  * Hook for sending invitations to caretakers or doctors
  */
@@ -170,6 +204,66 @@ export function useVerifyMedicalCredentials() {
   };
 
   return { verifyCredentials, loading, error };
+}
+
+/**
+ * Hook for assigning a patient to the best available doctor
+ */
+export function useAssignPatientToDoctor() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const assignDoctor = async (data: AssignPatientToDoctorRequest) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const callable = httpsCallable<AssignPatientToDoctorRequest, AssignPatientToDoctorResponse>(
+        functions,
+        "assignPatientToDoctor"
+      );
+      const result = await callable(data);
+      return result.data;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error("Failed to assign doctor");
+      setError(error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { assignDoctor, loading, error };
+}
+
+/**
+ * Hook for updating doctor availability status
+ */
+export function useUpdateDoctorAvailability() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const updateAvailability = async (data: UpdateDoctorAvailabilityRequest) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const callable = httpsCallable<UpdateDoctorAvailabilityRequest, UpdateDoctorAvailabilityResponse>(
+        functions,
+        "updateDoctorAvailability"
+      );
+      const result = await callable(data);
+      return result.data;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error("Failed to update availability");
+      setError(error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { updateAvailability, loading, error };
 }
 
 /**

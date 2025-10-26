@@ -7,6 +7,8 @@ export type DeviceType = "smartwatch" | "fitness_tracker" | "blood_pressure_moni
 
 export type DeviceStatus = "online" | "offline" | "syncing" | "error";
 
+export type DoctorAvailability = "available" | "busy" | "offline";
+
 export interface Device {
   id: string;
   name: string;
@@ -76,6 +78,50 @@ export interface Patient {
   status: "stable" | "warning" | "critical";
   assignedDoctorId?: string;
   assignedCaretakerId?: string;
+  assignmentReason?: AssignmentReason;
+  assignedAt?: Timestamp | Date;
+  chronicConditions?: string[];
+}
+
+export interface DoctorProfile {
+  uid: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  specialization: string;
+  yearsInPractice: number;
+  hospitalAffiliation?: string;
+  licenseId?: string;
+  availability: DoctorAvailability;
+  maxPatients: number;
+  currentPatientCount: number;
+}
+
+export interface AssignmentReason {
+  score: number;
+  factors: {
+    specializationMatch: boolean;
+    matchedConditions: string[];
+    availabilityBonus: number;
+    workloadScore: number;
+    experienceScore: number;
+  };
+  assignedBy: "system" | "manual" | "invitation";
+  timestamp: Timestamp | Date;
+}
+
+export interface AssignmentRequest {
+  patientId: string;
+  preferredSpecialization?: string;
+  urgency?: "routine" | "urgent" | "emergency";
+}
+
+export interface AssignmentResponse {
+  success: boolean;
+  doctorId?: string;
+  doctorName?: string;
+  reason?: AssignmentReason;
+  message?: string;
 }
 
 export interface DeviceContextValue {
