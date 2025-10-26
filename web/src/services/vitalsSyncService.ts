@@ -105,6 +105,27 @@ class VitalsSyncService {
   }
 
   /**
+   * Connect to Apple Health
+   */
+  async connectAppleHealth(): Promise<boolean> {
+    try {
+      const success = await healthPlatformService.authorizeAppleHealth();
+
+      if (success) {
+        // Do initial sync of recent data
+        await this.syncAppleHealthData();
+
+        console.log('Connected to Apple Health');
+      }
+
+      return success;
+    } catch (error) {
+      console.error('Error connecting to Apple Health:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Sync recent data from Google Fit
    */
   private async syncGoogleFitData(): Promise<void> {
@@ -123,6 +144,25 @@ class VitalsSyncService {
       console.log(`Synced ${vitals.length} vitals from Google Fit`);
     } catch (error) {
       console.error('Error syncing Google Fit data:', error);
+    }
+  }
+
+  /**
+   * Sync recent data from Apple Health
+   */
+  private async syncAppleHealthData(): Promise<void> {
+    try {
+      const vitals = await healthPlatformService.syncAppleHealth();
+
+      // Save all vitals to Firebase
+      for (const reading of vitals) {
+        await this.saveVitalsReading(reading);
+      }
+
+      this.lastSyncTime = new Date();
+      console.log(`Synced ${vitals.length} vitals from Apple Health`);
+    } catch (error) {
+      console.error('Error syncing Apple Health data:', error);
     }
   }
 
@@ -294,6 +334,7 @@ class VitalsSyncService {
     return {
       isBluetoothConnected: bluetoothService.getConnectedDevices().length > 0,
       isGoogleFitConnected: healthPlatformService.isGoogleFitConnected(),
+      isAppleHealthConnected: healthPlatformService.isAppleHealthConnected(),
       lastSyncTime: this.lastSyncTime,
       syncedDevices: bluetoothService.getConnectedDevices(),
     };
@@ -334,6 +375,13 @@ class VitalsSyncService {
   }
 
   /**
+   * Disconnect from Apple Health
+   */
+  async disconnectAppleHealth(): Promise<void> {
+    await healthPlatformService.disconnectAppleHealth();
+  }
+
+  /**
    * Start automatic periodic sync
    */
   startAutoSync(intervalMinutes: number = 5): void {
@@ -345,6 +393,11 @@ class VitalsSyncService {
       // Sync Google Fit data if connected
       if (healthPlatformService.isGoogleFitConnected()) {
         await this.syncGoogleFitData();
+      }
+
+      // Sync Apple Health data if connected
+      if (healthPlatformService.isAppleHealthConnected()) {
+        await this.syncAppleHealthData();
       }
     }, intervalMinutes * 60 * 1000);
 
@@ -368,6 +421,10 @@ class VitalsSyncService {
   async manualSync(): Promise<void> {
     if (healthPlatformService.isGoogleFitConnected()) {
       await this.syncGoogleFitData();
+    }
+
+    if (healthPlatformService.isAppleHealthConnected()) {
+      await this.syncAppleHealthData();
     }
   }
 }

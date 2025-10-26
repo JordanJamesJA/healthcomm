@@ -4,11 +4,12 @@ This guide explains how to connect real health monitoring devices to HealthComm 
 
 ## Overview
 
-HealthComm now supports connecting to real health devices through three methods:
+HealthComm now supports connecting to real health devices through four methods:
 
 1. **Bluetooth LE Devices** - Direct connection to Bluetooth health monitors
 2. **Google Fit** - Sync data from Android devices and connected fitness trackers
-3. **Manual Entry** - Add devices manually for testing or unsupported devices
+3. **Apple Health** - Sync data from iPhone, Apple Watch, and connected health devices (iOS only)
+4. **Manual Entry** - Add devices manually for testing or unsupported devices
 
 ## Features
 
@@ -101,6 +102,12 @@ To enable Google Fit integration:
 - Any modern browser
 - Google account with Fit data
 
+#### For Apple Health:
+- iOS 13.0 or later
+- iPhone or iPad device (not supported in web browsers or simulator)
+- Native iOS app built with Capacitor
+- HealthKit capability enabled
+
 ## Using Device Connectivity
 
 ### Connecting a Bluetooth Device
@@ -150,6 +157,40 @@ Most modern health devices that advertise these services will work, including:
 - Continuous sync every 5 minutes for new data
 - Heart rate, blood pressure, glucose, temperature, SpO2
 
+### Connecting Apple Health (iOS)
+
+**Prerequisites:**
+- iOS 13.0 or later
+- iPhone or iPad device
+- Capacitor configured (see IOS_HEALTHKIT_SETUP.md)
+- HealthKit capability enabled in Xcode
+
+**Setup Steps:**
+
+1. Follow the complete setup guide in `IOS_HEALTHKIT_SETUP.md`
+2. Build and deploy the app to your iOS device
+3. Navigate to the Patient Dashboard
+4. Click "Add Device" or go to Device Management
+5. Select **Apple Health** connection method
+6. Review the data permissions
+7. Click "Connect Apple Health"
+8. Grant permissions to access Health data types
+9. Data will sync automatically every 5 minutes
+
+**What data is synced:**
+- Last 24 hours of vitals data on initial connection
+- Continuous auto-sync every 5 minutes for new data
+- Heart rate, blood pressure, glucose, temperature, SpO2
+- Data from iPhone Health app, Apple Watch, and connected devices
+
+**Important Notes:**
+- Apple Health integration only works on physical iOS devices (not simulator)
+- Requires proper HealthKit capability and privacy strings in Info.plist
+- Data syncs from the iOS Health app, which aggregates data from multiple sources
+- Users must have granted HealthComm access to specific health data types
+
+For detailed iOS setup instructions, see [IOS_HEALTHKIT_SETUP.md](./IOS_HEALTHKIT_SETUP.md)
+
 ### Manual Device Entry
 
 For devices that don't support Bluetooth or Google Fit:
@@ -175,6 +216,7 @@ Once connected, devices automatically sync data:
 
 - **Bluetooth devices**: Real-time as measurements occur
 - **Google Fit**: Every 5 minutes
+- **Apple Health**: Every 5 minutes
 - All data is stored in Firebase with timestamps
 - Charts update automatically with new data
 
@@ -414,7 +456,6 @@ For issues or questions:
 ## Future Enhancements
 
 Planned features:
-- Apple HealthKit integration (iOS)
 - Samsung Health integration
 - Fitbit API integration
 - Continuous glucose monitoring (CGM) support
@@ -422,3 +463,5 @@ Planned features:
 - Sleep tracking
 - Activity monitoring
 - Medication reminders synced with vitals
+- Background health data sync (iOS)
+- Health trends and predictions using ML

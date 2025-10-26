@@ -284,6 +284,66 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const connectAppleHealth = async () => {
+    if (!user?.uid) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      const success = await vitalsSyncService.connectAppleHealth();
+
+      if (success) {
+        // Add Apple Health as a virtual device
+        const appleHealthDevice: Device = {
+          id: 'apple-health',
+          name: 'Apple Health',
+          type: 'other',
+          status: 'online',
+          manufacturer: 'Apple',
+          lastSyncTime: Timestamp.now(),
+          addedAt: Timestamp.now(),
+        };
+
+        const userDocRef = doc(db, 'users', user.uid);
+
+        // Check if Apple Health device already exists
+        const existingAppleHealth = devices.find(d => d.id === 'apple-health');
+        if (!existingAppleHealth) {
+          await updateDoc(userDocRef, {
+            connectedDevices: arrayUnion(appleHealthDevice),
+          });
+
+          // If this is the first device, set it as active
+          if (devices.length === 0) {
+            await updateDoc(userDocRef, {
+              activeDeviceId: appleHealthDevice.id,
+            });
+          }
+        } else {
+          // Update status to online
+          await updateDeviceStatus('apple-health', 'online');
+        }
+      }
+
+      return success;
+    } catch (error) {
+      console.error('Error connecting Apple Health:', error);
+      throw error;
+    }
+  };
+
+  const disconnectAppleHealth = async () => {
+    if (!user?.uid) return;
+
+    try {
+      await vitalsSyncService.disconnectAppleHealth();
+      await updateDeviceStatus('apple-health', 'offline');
+    } catch (error) {
+      console.error('Error disconnecting Apple Health:', error);
+      throw error;
+    }
+  };
+
   const manualSync = async () => {
     if (!user?.uid) return;
 
@@ -310,6 +370,8 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     connectGoogleFit,
     disconnectBluetoothDevice,
     disconnectGoogleFit,
+    connectAppleHealth,
+    disconnectAppleHealth,
     manualSync,
   };
 

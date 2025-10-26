@@ -30,6 +30,7 @@ export interface DataPoint {
 export interface HealthPlatformConfig {
   googleFitClientId?: string;
   appleHealthEnabled?: boolean;
+  appleHealthAutoSync?: boolean;
 }
 
 export interface SyncConfig {
@@ -41,6 +42,7 @@ export interface SyncConfig {
 export interface SyncStatus {
   isBluetoothConnected: boolean;
   isGoogleFitConnected: boolean;
+  isAppleHealthConnected: boolean;
   lastSyncTime?: Date;
   syncedDevices: string[];
 }

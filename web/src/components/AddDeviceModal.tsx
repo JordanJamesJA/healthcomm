@@ -9,11 +9,11 @@ interface AddDeviceModalProps {
 }
 
 export default function AddDeviceModal({ isOpen, onClose }: AddDeviceModalProps) {
-  const { addDevice, connectBluetoothDevice, connectGoogleFit } = useDevice();
+  const { addDevice, connectBluetoothDevice, connectGoogleFit, connectAppleHealth } = useDevice();
   const { darkMode } = useDarkMode();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [connectionMode, setConnectionMode] = useState<'manual' | 'bluetooth' | 'googlefit'>('bluetooth');
+  const [connectionMode, setConnectionMode] = useState<'manual' | 'bluetooth' | 'googlefit' | 'applehealth'>('bluetooth');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -104,6 +104,24 @@ export default function AddDeviceModal({ isOpen, onClose }: AddDeviceModalProps)
     }
   };
 
+  const handleAppleHealthConnect = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const success = await connectAppleHealth();
+      if (success) {
+        onClose();
+      } else {
+        setError('Failed to connect to Apple Health');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect to Apple Health');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-lg shadow-xl max-w-md w-full mx-4 p-6`}>
@@ -129,7 +147,7 @@ export default function AddDeviceModal({ isOpen, onClose }: AddDeviceModalProps)
         {/* Connection Mode Selection */}
         <div className="mb-6">
           <label className="block text-sm font-medium mb-3">Connection Method</label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <button
               type="button"
               onClick={() => setConnectionMode('bluetooth')}
@@ -163,6 +181,24 @@ export default function AddDeviceModal({ isOpen, onClose }: AddDeviceModalProps)
                   <path d="m11 18 1-3h2l1 3h-4zm3.5-11.5a1.5 1.5 0 1 1-3.001-.001 1.5 1.5 0 0 1 3.001.001z"/>
                 </svg>
                 <div className="text-xs font-medium">Google Fit</div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setConnectionMode('applehealth')}
+              className={`p-3 rounded-md border-2 transition-all ${
+                connectionMode === 'applehealth'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
+                  : darkMode ? 'border-gray-600 hover:border-gray-500' : 'border-gray-300 hover:border-gray-400'
+              }`}
+              disabled={loading}
+            >
+              <div className="text-center">
+                <svg className="w-8 h-8 mx-auto mb-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20.57 3.51c-1.16-1.16-2.68-1.8-4.29-1.8-1.18 0-2.31.35-3.28 1.01C12.03 2.06 10.9 1.71 9.72 1.71c-1.61 0-3.13.64-4.29 1.8-2.37 2.37-2.37 6.22 0 8.59L12 18.67l6.57-6.57c2.37-2.37 2.37-6.22 0-8.59zM12 16.15l-5.46-5.46c-1.7-1.7-1.7-4.47 0-6.17.82-.82 1.92-1.28 3.08-1.28.94 0 1.84.28 2.6.81l.78.58.78-.58c.76-.53 1.66-.81 2.6-.81 1.16 0 2.26.46 3.08 1.28 1.7 1.7 1.7 4.47 0 6.17L12 16.15z"/>
+                  <path d="M12 7v5h5"/>
+                </svg>
+                <div className="text-xs font-medium">Apple Health</div>
               </div>
             </button>
             <button
@@ -267,6 +303,38 @@ export default function AddDeviceModal({ isOpen, onClose }: AddDeviceModalProps)
               disabled={loading}
             >
               {loading ? 'Connecting...' : 'Connect Google Fit'}
+            </button>
+          </div>
+        )}
+
+        {/* Apple Health Connection UI */}
+        {connectionMode === 'applehealth' && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Connect to Apple Health to sync health data from your iPhone, Apple Watch, and connected health devices.
+            </p>
+            <div className="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+              <h4 className="font-medium mb-2">What data will be synced?</h4>
+              <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300">
+                <li>• Heart rate measurements</li>
+                <li>• Blood pressure readings</li>
+                <li>• Blood glucose levels</li>
+                <li>• Body temperature</li>
+                <li>• Oxygen saturation (SpO2)</li>
+              </ul>
+            </div>
+            <div className="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                <strong>Note:</strong> Apple Health integration requires iOS 13.0 or later and is only available on iPhone and iPad devices.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAppleHealthConnect}
+              className="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              disabled={loading}
+            >
+              {loading ? 'Connecting...' : 'Connect Apple Health'}
             </button>
           </div>
         )}

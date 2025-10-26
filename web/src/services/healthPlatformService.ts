@@ -4,6 +4,7 @@
  */
 
 import type { VitalsReading, HealthPlatformConfig, DataPoint } from './types';
+import { healthKitService } from './healthKitService';
 
 // Google Fit API configuration
 const GOOGLE_FIT_SCOPES = [
@@ -419,6 +420,106 @@ class HealthPlatformService {
       this.isGoogleFitAuthorized = false;
       this.stopAutoSync();
     }
+  }
+
+  /**
+   * Check if Apple HealthKit is available
+   */
+  async isAppleHealthAvailable(): Promise<boolean> {
+    return healthKitService.isAvailable();
+  }
+
+  /**
+   * Authorize with Apple HealthKit
+   */
+  async authorizeAppleHealth(): Promise<boolean> {
+    try {
+      const available = await healthKitService.isAvailable();
+      if (!available) {
+        throw new Error('Apple HealthKit is not available on this device');
+      }
+
+      await healthKitService.requestAuthorization();
+
+      // Set up data callback
+      healthKitService.onData((reading) => {
+        if (this.onDataCallback) {
+          this.onDataCallback(reading);
+        }
+      });
+
+      // Start auto-sync if enabled
+      if (this.config.appleHealthAutoSync !== false) {
+        healthKitService.startAutoSync(5); // Default 5 minutes
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error authorizing Apple HealthKit:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if Apple HealthKit is authorized
+   */
+  isAppleHealthConnected(): boolean {
+    return healthKitService.isHealthKitAuthorized();
+  }
+
+  /**
+   * Manually sync data from Apple HealthKit
+   */
+  async syncAppleHealth(): Promise<VitalsReading[]> {
+    if (!healthKitService.isHealthKitAuthorized()) {
+      throw new Error('Apple HealthKit not authorized');
+    }
+
+    try {
+      const vitals = await healthKitService.manualSync();
+
+      // Emit each reading
+      vitals.forEach(reading => {
+        if (this.onDataCallback) {
+          this.onDataCallback(reading);
+        }
+      });
+
+      return vitals;
+    } catch (error) {
+      console.error('Error syncing Apple HealthKit:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Disconnect from Apple HealthKit
+   */
+  async disconnectAppleHealth(): Promise<void> {
+    await healthKitService.disconnect();
+  }
+
+  /**
+   * Get connection status for all platforms
+   */
+  getConnectionStatus(): {
+    googleFit: boolean;
+    appleHealth: boolean;
+  } {
+    return {
+      googleFit: this.isGoogleFitConnected(),
+      appleHealth: this.isAppleHealthConnected(),
+    };
+  }
+
+  /**
+   * Disconnect from all platforms
+   */
+  async disconnectAll(): Promise<void> {
+    await Promise.all([
+      this.disconnectGoogleFit(),
+      this.disconnectAppleHealth(),
+    ]);
   }
 }
 
