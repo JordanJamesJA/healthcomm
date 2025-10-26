@@ -90,5 +90,7 @@ export interface DeviceContextValue {
   connectGoogleFit: () => Promise<boolean>;
   disconnectBluetoothDevice: (deviceId: string) => Promise<void>;
   disconnectGoogleFit: () => Promise<void>;
+  connectAppleHealth: () => Promise<boolean>;
+  disconnectAppleHealth: () => Promise<void>;
   manualSync: () => Promise<void>;
 }
