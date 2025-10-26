@@ -12,7 +12,6 @@ import AuthContext from "../../contexts/AuthContext";
 export default function Dashboard() {
   const authContext = useContext(AuthContext);
 
-  // ✅ Type safety (Option 1)
   if (!authContext) {
     throw new Error("Dashboard must be used within an AuthProvider");
   }
@@ -21,16 +20,15 @@ export default function Dashboard() {
   const [range, setRange] = useState("6h");
   const navigate = useNavigate();
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) return <p className="dark:text-white">Loading...</p>;
 
   if (!user) {
-    navigate("/"); // redirect to home/login if not logged in
+    navigate("/");
     return null;
   }
 
-  const role = user.role; // assuming role is stored in user object
+  const role = user.role;
 
-  // Role-specific renderers
   const renderPatientDashboard = () => (
     <>
       <AlertBox
@@ -61,7 +59,7 @@ export default function Dashboard() {
         <InfoCard title="Assigned Doctor">
           <div className="flex items-center gap-2">
             <FaUserMd className="text-green-600" />
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               {user.assignedDoctor || "No healthcare professional connected"}
             </p>
           </div>
@@ -70,7 +68,7 @@ export default function Dashboard() {
         <InfoCard title="Connected Device">
           <div className="flex items-center gap-2">
             <FaPlug className="text-green-600" />
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               {user.connectedDevices && user.connectedDevices.length > 0
                 ? `Device Connected: ${user.connectedDevices.join(", ")}`
                 : "No connected devices"}
@@ -147,16 +145,16 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 px-8 py-10">
+    <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-8 py-10 transition-colors duration-300">
       <DashboardHeader />
       <section>
         <h2 className="text-2xl font-bold mb-1">
           Welcome, {user.firstName}{" "}
-          <span className="font-normal text-md text-gray-600">
+          <span className="font-normal text-md text-gray-600 dark:text-gray-400">
             | {role?.toUpperCase()}
           </span>
         </h2>
-        <p className="text-gray-600 mb-6">
+        <p className="text-gray-600 dark:text-gray-300 mb-6">
           {role === "patient"
             ? "Monitor your health vitals in real-time"
             : "Access your dashboard tools"}

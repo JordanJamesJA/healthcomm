@@ -23,17 +23,19 @@ const MultiSelectField: React.FC<MultiSelectFieldProps> = ({
 
   return (
     <div>
-      <label className="block text-gray-700 mb-2">{label}</label>
+      <label className="block text-gray-700 dark:text-gray-300 mb-2">
+        {label}
+      </label>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => (
           <button
             key={option}
             type="button"
             onClick={() => handleToggle(option)}
-            className={`px-3 py-1 rounded-full border ${
+            className={`px-3 py-1 rounded-full border transition-colors duration-200 ${
               selected.includes(option)
-                ? "bg-green-600 text-white border-green-600"
-                : "bg-gray-100 text-gray-700 border-gray-300"
+                ? "bg-green-600 dark:bg-green-500 text-white border-green-600 dark:border-green-500"
+                : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600"
             }`}
           >
             {option}
