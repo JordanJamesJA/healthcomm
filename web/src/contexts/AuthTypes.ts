@@ -3,6 +3,23 @@ import { Timestamp } from "firebase/firestore";
 
 export type Role = "patient" | "caretaker" | "medical";
 
+export type DeviceType = "smartwatch" | "fitness_tracker" | "blood_pressure_monitor" | "glucose_monitor" | "pulse_oximeter" | "ecg_monitor" | "other";
+
+export type DeviceStatus = "online" | "offline" | "syncing" | "error";
+
+export interface Device {
+  id: string;
+  name: string;
+  type: DeviceType;
+  status: DeviceStatus;
+  lastSyncTime: Timestamp | Date;
+  manufacturer?: string;
+  model?: string;
+  firmwareVersion?: string;
+  batteryLevel?: number;
+  addedAt: Timestamp | Date;
+}
+
 export interface AppUser {
   uid: string;
   firstName?: string;
@@ -12,7 +29,8 @@ export interface AppUser {
   assignedDoctor?: string;
   assignedDoctorId?: string;
   assignedCaretakerId?: string;
-  connectedDevices?: string[];
+  connectedDevices?: Device[];
+  activeDeviceId?: string;
   vitals?: Record<string, unknown>;
   bloodType?: string;
   dateOfBirth?: string;
@@ -58,4 +76,14 @@ export interface Patient {
   status: "stable" | "warning" | "critical";
   assignedDoctorId?: string;
   assignedCaretakerId?: string;
+}
+
+export interface DeviceContextValue {
+  activeDevice: Device | null;
+  setActiveDevice: (device: Device | null) => void;
+  devices: Device[];
+  addDevice: (device: Omit<Device, 'id' | 'addedAt'>) => Promise<void>;
+  removeDevice: (deviceId: string) => Promise<void>;
+  updateDeviceStatus: (deviceId: string, status: DeviceStatus) => Promise<void>;
+  refreshDevices: () => Promise<void>;
 }

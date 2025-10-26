@@ -10,6 +10,7 @@ import Signup from "./pages/auth/Signup";
 import Dashboard from "./pages/auth/Dashboard";
 import { AuthProvider } from "./contexts/AuthContext";
 import { DarkModeProvider } from "./contexts/DarkModeProvider";
+import { DeviceProvider } from "./contexts/DeviceContext";
 import { useAuth } from "./hooks/useAuth";
 
 // ProtectedRoute component with loading state
@@ -100,50 +101,52 @@ function PublicRoute({ children }: { children: JSX.Element }) {
 function App() {
   return (
     <AuthProvider>
-      <DarkModeProvider>
-        <Router>
-          <Routes>
-            {/* Public Routes - redirect to dashboard if logged in */}
-            <Route
-              path="/"
-              element={
-                <PublicRoute>
-                  <Home />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/login"
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/signup/:role"
-              element={
-                <PublicRoute>
-                  <Signup />
-                </PublicRoute>
-              }
-            />
+      <DeviceProvider>
+        <DarkModeProvider>
+          <Router>
+            <Routes>
+              {/* Public Routes - redirect to dashboard if logged in */}
+              <Route
+                path="/"
+                element={
+                  <PublicRoute>
+                    <Home />
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/login"
+                element={
+                  <PublicRoute>
+                    <Login />
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/signup/:role"
+                element={
+                  <PublicRoute>
+                    <Signup />
+                  </PublicRoute>
+                }
+              />
 
-            {/* Protected Dashboard Route */}
-            <Route
-              path="/dashboard/:role"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
+              {/* Protected Dashboard Route */}
+              <Route
+                path="/dashboard/:role"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Catch-all fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Router>
-      </DarkModeProvider>
+              {/* Catch-all fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Router>
+        </DarkModeProvider>
+      </DeviceProvider>
     </AuthProvider>
   );
 }
