@@ -7,17 +7,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-
-interface VitalData {
-  heartRate?: number;
-  bloodPressureSystolic?: number;
-  bloodPressureDiastolic?: number;
-  oxygenLevel?: number;
-  temperature?: number;
-  glucose?: number;
-  respiration?: number;
-  timestamp?: Date;
-}
+import { Timestamp } from "firebase/firestore";
+import type { VitalData } from "../contexts/AuthTypes";
 
 interface VitalChartProps {
   vital: string;
@@ -30,6 +21,15 @@ interface ChartDataPoint {
   time: string;
   value?: number;
   diastolic?: number;
+}
+
+// Type for Tooltip props
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    value: number;
+    payload: ChartDataPoint;
+  }>;
 }
 
 // Helper: Get hours from range string
@@ -55,19 +55,26 @@ const filterDataByTimeRange = (
   const cutoffTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
 
   return data
-    .filter((d) => d.timestamp && new Date(d.timestamp) >= cutoffTime)
+    .filter((d) => {
+      if (!d.timestamp) return false;
+      
+      // Convert Timestamp to Date if needed
+      const date = d.timestamp instanceof Timestamp ? d.timestamp.toDate() : d.timestamp;
+      return date >= cutoffTime;
+    })
     .sort((a, b) => {
-      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      const timeA = a.timestamp
+        ? (a.timestamp instanceof Timestamp ? a.timestamp.toDate() : a.timestamp).getTime()
+        : 0;
+      const timeB = b.timestamp
+        ? (b.timestamp instanceof Timestamp ? b.timestamp.toDate() : b.timestamp).getTime()
+        : 0;
       return timeA - timeB;
     });
 };
 
 // Helper: Extract value based on data key
-const extractValue = (
-  item: VitalData,
-  dataKey?: string
-): number | undefined => {
+const extractValue = (item: VitalData, dataKey?: string): number | undefined => {
   switch (dataKey) {
     case "heartRate":
       return item.heartRate;
@@ -87,9 +94,13 @@ const extractValue = (
 };
 
 // Helper: Format timestamp for display
-const formatTime = (timestamp?: Date): string => {
+const formatTime = (timestamp?: Date | Timestamp): string => {
   if (!timestamp) return "";
-  return new Date(timestamp).toLocaleTimeString([], {
+  
+  // Convert Timestamp to Date if needed
+  const date = timestamp instanceof Timestamp ? timestamp.toDate() : timestamp;
+  
+  return date.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -137,15 +148,6 @@ const EmptyState = ({ vital, range }: { vital: string; range: string }) => (
   </div>
 );
 
-// Type for Tooltip props
-interface TooltipProps {
-  active?: boolean;
-  payload?: Array<{
-    value: number;
-    payload: ChartDataPoint;
-  }>;
-}
-
 // Component: Custom Tooltip
 const CustomTooltip = ({ active, payload }: TooltipProps) => {
   if (!active || !payload || !payload.length) return null;
@@ -158,8 +160,7 @@ const CustomTooltip = ({ active, payload }: TooltipProps) => {
       </p>
       {payload[0].payload.diastolic && (
         <p className="text-sm">
-          Diastolic:{" "}
-          <span className="font-bold">{payload[0].payload.diastolic}</span>
+          Diastolic: <span className="font-bold">{payload[0].payload.diastolic}</span>
         </p>
       )}
     </div>

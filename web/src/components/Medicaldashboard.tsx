@@ -17,36 +17,11 @@ import {
   FaBell,
 } from "react-icons/fa";
 import InfoCard from "../components/InfoCard";
-import type { AppUser } from "../contexts/AuthTypes";
-
-interface VitalData {
-  heartRate?: number;
-  bloodPressureSystolic?: number;
-  bloodPressureDiastolic?: number;
-  oxygenLevel?: number;
-  temperature?: number;
-  glucose?: number;
-  respiration?: number;
-  timestamp?: Timestamp | Date;
-}
-
-interface Alert {
-  id: string;
-  title: string;
-  message: string;
-  severity: "low" | "medium" | "high";
-  timestamp: Timestamp | Date;
-  patientId?: string;
-  patientName?: string;
-}
-
-interface Patient {
-  id: string;
-  firstName: string;
-  lastName: string;
-  lastVitals?: VitalData;
-  status: "stable" | "warning" | "critical";
-}
+import type {
+  AppUser,
+  Alert,
+  Patient,
+} from "../contexts/AuthTypes";
 
 interface MedicalDashboardProps {
   user: AppUser;
@@ -254,9 +229,7 @@ export default function MedicalDashboard({ user }: MedicalDashboardProps) {
                       )}
                       {patient.lastVitals?.bloodPressureSystolic && (
                         <div>
-                          <p className="text-gray-600 dark:text-gray-400">
-                            BP
-                          </p>
+                          <p className="text-gray-600 dark:text-gray-400">BP</p>
                           <p className="font-semibold dark:text-white">
                             {patient.lastVitals.bloodPressureSystolic}/
                             {patient.lastVitals.bloodPressureDiastolic}

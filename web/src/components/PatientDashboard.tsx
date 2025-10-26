@@ -14,26 +14,7 @@ import InfoCard from "../components/InfoCard";
 import VitalStat from "../components/VitalStat";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import VitalChart from "../components/VitalChart";
-import type { AppUser } from "../contexts/AuthTypes";
-
-interface VitalData {
-  heartRate?: number;
-  bloodPressureSystolic?: number;
-  bloodPressureDiastolic?: number;
-  oxygenLevel?: number;
-  temperature?: number;
-  glucose?: number;
-  respiration?: number;
-  timestamp?: Timestamp | Date;
-}
-
-interface Alert {
-  id: string;
-  title: string;
-  message: string;
-  severity: "low" | "medium" | "high";
-  timestamp: Timestamp | Date;
-}
+import type { AppUser, VitalData, Alert } from "../contexts/AuthTypes";
 
 interface PatientDashboardProps {
   user: AppUser;
@@ -44,6 +25,15 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
   const [vitals, setVitals] = useState<VitalData | null>(null);
   const [vitalHistory, setVitalHistory] = useState<VitalData[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+
+  // Convert vitalHistory to have only Date timestamps for charts
+  const chartData: VitalData[] = vitalHistory.map((vital) => ({
+    ...vital,
+    timestamp:
+      vital.timestamp instanceof Timestamp
+        ? vital.timestamp.toDate()
+        : vital.timestamp,
+  }));
 
   // Fetch real-time vitals
   useEffect(() => {
@@ -78,7 +68,7 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const history = snapshot.docs.map((doc) => {
+        const history: VitalData[] = snapshot.docs.map((doc) => {
           const data = doc.data() as VitalData;
           return {
             ...data,
@@ -86,7 +76,7 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
               data.timestamp instanceof Timestamp
                 ? data.timestamp.toDate()
                 : data.timestamp,
-          };
+          } as VitalData;
         });
         setVitalHistory(history);
       },
@@ -190,7 +180,7 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
             />
             <p className="text-sm text-gray-600 dark:text-gray-300">
               {hasDevice
-                ? `Connected: ${user.connectedDevices.join(", ")}`
+                ? `Connected: ${user.connectedDevices?.join(", ")}`
                 : "No device connected"}
             </p>
           </div>
@@ -267,37 +257,37 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
             <VitalChart
               vital="Heart Rate"
               range={range}
-              data={vitalHistory}
+              data={chartData}
               dataKey="heartRate"
             />
             <VitalChart
               vital="Blood Pressure"
               range={range}
-              data={vitalHistory}
+              data={chartData}
               dataKey="bloodPressure"
             />
             <VitalChart
               vital="Oxygen Level"
               range={range}
-              data={vitalHistory}
+              data={chartData}
               dataKey="oxygenLevel"
             />
             <VitalChart
               vital="Temperature"
               range={range}
-              data={vitalHistory}
+              data={chartData}
               dataKey="temperature"
             />
             <VitalChart
               vital="Glucose"
               range={range}
-              data={vitalHistory}
+              data={chartData}
               dataKey="glucose"
             />
             <VitalChart
               vital="Respiration"
               range={range}
-              data={vitalHistory}
+              data={chartData}
               dataKey="respiration"
             />
           </div>

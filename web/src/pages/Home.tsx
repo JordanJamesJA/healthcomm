@@ -3,24 +3,11 @@ import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import RoleCard from "../components/RoleCard";
 import { Stethoscope, HeartPulse, Users } from "lucide-react";
-import { useDarkMode } from "../contexts/useDarkMode";
 
 const Home: FC = () => {
-  const { darkMode, toggleDarkMode } = useDarkMode();
-
   return (
     <div className="min-h-screen bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
       <Navbar />
-
-      {/* Optional dark mode toggle button at top-right */}
-      <div className="flex justify-end px-6 pt-6">
-        <button
-          onClick={toggleDarkMode}
-          className="border px-4 py-1 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-        >
-          {darkMode ? "Dark" : "Light"}
-        </button>
-      </div>
 
       <section className="text-center px-6 py-16">
         <div className="flex justify-center mb-4">
