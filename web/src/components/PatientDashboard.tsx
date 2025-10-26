@@ -14,6 +14,10 @@ import InfoCard from "../components/InfoCard";
 import VitalStat from "../components/VitalStat";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import VitalChart from "../components/VitalChart";
+import DeviceManagement from "../components/DeviceManagement";
+import DeviceOfflineAlert from "../components/DeviceOfflineAlert";
+import DeviceSwitcher from "../components/DeviceSwitcher";
+import { useDevice } from "../hooks/useDevice";
 import type { AppUser, VitalData, Alert } from "../contexts/AuthTypes";
 
 interface PatientDashboardProps {
@@ -21,6 +25,7 @@ interface PatientDashboardProps {
 }
 
 export default function PatientDashboard({ user }: PatientDashboardProps) {
+  const { activeDevice, devices } = useDevice();
   const [range, setRange] = useState("6h");
   const [vitals, setVitals] = useState<VitalData | null>(null);
   const [vitalHistory, setVitalHistory] = useState<VitalData[]>([]);
@@ -35,10 +40,14 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
         : vital.timestamp,
   }));
 
-  // Fetch real-time vitals
+  // Fetch real-time vitals for active device
   useEffect(() => {
-    if (!user.uid) return;
+    if (!user.uid || !activeDevice) {
+      setVitals(null);
+      return;
+    }
 
+    // Query vitals for the active device
     const vitalsRef = collection(db, `patients/${user.uid}/vitals`);
     const q = query(vitalsRef, orderBy("timestamp", "desc"), limit(1));
 
@@ -56,11 +65,14 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
     );
 
     return () => unsubscribe();
-  }, [user.uid]);
+  }, [user.uid, activeDevice?.id]);
 
-  // Fetch vital history for charts
+  // Fetch vital history for charts (active device)
   useEffect(() => {
-    if (!user.uid) return;
+    if (!user.uid || !activeDevice) {
+      setVitalHistory([]);
+      return;
+    }
 
     const vitalsRef = collection(db, `patients/${user.uid}/vitals`);
     const q = query(vitalsRef, orderBy("timestamp", "desc"), limit(50));
@@ -86,7 +98,7 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
     );
 
     return () => unsubscribe();
-  }, [user.uid, range]);
+  }, [user.uid, activeDevice?.id, range]);
 
   // Fetch alerts
   useEffect(() => {
@@ -121,11 +133,21 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
     return () => unsubscribe();
   }, [user.uid]);
 
-  const hasDevice = user.connectedDevices && user.connectedDevices.length > 0;
+  const hasDevice = devices.length > 0;
   const hasVitals = vitals && Object.keys(vitals).length > 1;
 
   return (
     <>
+      {/* Device Switcher */}
+      {hasDevice && (
+        <div className="mb-6 flex justify-end">
+          <DeviceSwitcher />
+        </div>
+      )}
+
+      {/* Device Offline Alert */}
+      <DeviceOfflineAlert />
+
       {/* Critical Alerts */}
       {alerts
         .filter((a) => a.severity === "high")
@@ -169,24 +191,35 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
           </div>
         </InfoCard>
 
-        <InfoCard title="Connected Device">
+        <InfoCard title="Active Device">
           <div className="flex items-center gap-2">
             <FaPlug
               className={
-                hasDevice
+                activeDevice && activeDevice.status === 'online'
                   ? "text-green-600 dark:text-green-400"
                   : "text-gray-400"
               }
             />
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              {hasDevice
-                ? `Connected: ${user.connectedDevices?.join(", ")}`
-                : "No device connected"}
-            </p>
+            <div className="text-sm">
+              {activeDevice ? (
+                <>
+                  <p className="text-gray-900 dark:text-gray-100 font-medium">
+                    {activeDevice.name}
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-300 text-xs capitalize">
+                    {activeDevice.type.replace('_', ' ')} • {activeDevice.status}
+                  </p>
+                </>
+              ) : (
+                <p className="text-gray-600 dark:text-gray-300">
+                  {hasDevice ? "Select a device above" : "No device connected"}
+                </p>
+              )}
+            </div>
           </div>
           {!hasDevice && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              Connect a device to start monitoring your vitals
+              Add a device below to start monitoring your vitals
             </p>
           )}
         </InfoCard>
@@ -293,6 +326,11 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
           </div>
         </section>
       )}
+
+      {/* Device Management */}
+      <section className="mt-10">
+        <DeviceManagement />
+      </section>
     </>
   );
 }
