@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -168,22 +169,25 @@ const CustomTooltip = ({ active, payload }: TooltipProps) => {
 };
 
 // Main Component
-export default function VitalChart({
+const VitalChart = memo(function VitalChart({
   vital,
   range,
   data = [],
   dataKey,
 }: VitalChartProps) {
-  // Filter and transform data
-  const filteredData = filterDataByTimeRange(data, range);
-  const chartData = transformToChartData(filteredData, dataKey);
+  // Memoize filtered and transformed data to prevent unnecessary recalculations
+  const chartData = useMemo(() => {
+    const filteredData = filterDataByTimeRange(data, range);
+    return transformToChartData(filteredData, dataKey);
+  }, [data, range, dataKey]);
+
+  // Memoize line color
+  const lineColor = useMemo(() => getLineColor(vital), [vital]);
 
   // Show empty state if no data
   if (chartData.length === 0) {
     return <EmptyState vital={vital} range={range} />;
   }
-
-  const lineColor = getLineColor(vital);
 
   return (
     <div className="border dark:border-gray-700 rounded-xl p-4 shadow-sm bg-white dark:bg-gray-800 transition-colors duration-300">
@@ -212,9 +216,12 @@ export default function VitalChart({
             strokeWidth={2}
             dot={{ fill: lineColor, r: 3 }}
             activeDot={{ r: 5 }}
+            isAnimationActive={false}
           />
         </LineChart>
       </ResponsiveContainer>
     </div>
   );
-}
+});
+
+export default VitalChart;
