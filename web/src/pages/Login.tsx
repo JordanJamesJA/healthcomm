@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../services/firebase";
 import {
@@ -8,6 +8,7 @@ import {
   FaEnvelope,
   FaLock,
   FaExclamationCircle,
+  FaCheckCircle,
 } from "react-icons/fa";
 import type { FormEvent } from "react";
 interface LoginError {
@@ -21,6 +22,10 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<LoginError | null>(null);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   const validateForm = (): boolean => {
     // Email validation
@@ -71,6 +76,55 @@ export default function Login() {
         return "Network error. Please check your connection and try again.";
       default:
         return "An error occurred during login. Please try again.";
+    }
+  };
+
+  const handlePasswordReset = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setResetSuccess(false);
+
+    if (!resetEmail.trim()) {
+      setError({ message: "Please enter your email address", field: "email" });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(resetEmail)) {
+      setError({ message: "Please enter a valid email address", field: "email" });
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      await sendPasswordResetEmail(auth, resetEmail, {
+        url: `${window.location.origin}/login`,
+        handleCodeInApp: false,
+      });
+
+      setResetSuccess(true);
+      setResetEmail("");
+
+      // Auto-close modal after 3 seconds
+      setTimeout(() => {
+        setShowResetPassword(false);
+        setResetSuccess(false);
+      }, 3000);
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "code" in err) {
+        const errorCode = (err as { code: string }).code;
+        if (errorCode === "auth/user-not-found") {
+          setError({ message: "No account found with this email", field: "email" });
+        } else {
+          setError({ message: "Failed to send reset email. Please try again.", field: "general" });
+        }
+      } else {
+        setError({ message: "An unexpected error occurred", field: "general" });
+      }
+      console.error("Password reset error:", err);
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -282,6 +336,17 @@ export default function Login() {
           </button>
         </form>
 
+        {/* Forgot Password Link */}
+        <div className="mt-4 text-center">
+          <button
+            type="button"
+            onClick={() => setShowResetPassword(true)}
+            className="text-sm text-green-600 dark:text-green-400 hover:underline"
+          >
+            Forgot your password?
+          </button>
+        </div>
+
         {/* Footer Links */}
         <div className="mt-6 text-center space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -298,6 +363,93 @@ export default function Login() {
           </p>
         </div>
       </div>
+
+      {/* Password Reset Modal */}
+      {showResetPassword && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center px-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 w-full max-w-md shadow-2xl">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Reset Password
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+
+            {resetSuccess ? (
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start gap-3 mb-4">
+                <FaCheckCircle className="text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-green-700 dark:text-green-300">
+                    Password reset email sent!
+                  </p>
+                  <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                    Check your inbox for instructions to reset your password.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handlePasswordReset} className="space-y-4">
+                {error && (
+                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
+                    <FaExclamationCircle className="text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      {error.message}
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label
+                    htmlFor="resetEmail"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                  >
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <FaEnvelope className="text-gray-400 dark:text-gray-500" />
+                    </div>
+                    <input
+                      id="resetEmail"
+                      type="email"
+                      value={resetEmail}
+                      onChange={(e) => {
+                        setResetEmail(e.target.value);
+                        setError(null);
+                      }}
+                      placeholder="you@example.com"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                      disabled={resetLoading}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowResetPassword(false);
+                      setError(null);
+                      setResetEmail("");
+                    }}
+                    disabled={resetLoading}
+                    className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold py-3 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetLoading}
+                    className="flex-1 bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {resetLoading ? "Sending..." : "Send Reset Link"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

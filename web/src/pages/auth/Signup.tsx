@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../../services/firebase";
 import AuthForm from "../../components/AuthForm";
@@ -62,7 +62,7 @@ const Signup: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!role) return; 
+    if (!role) return;
 
     try {
       const { email, password, ...profile } = formData;
@@ -74,15 +74,32 @@ const Signup: React.FC = () => {
       );
       const uid = userCred.user.uid;
 
+      // Create user profile in Firestore
       await setDoc(doc(db, "users", uid), {
         uid,
+        email,
         role,
         ...profile,
         chronicConditions,
+        emailVerified: false,
         createdAt: serverTimestamp(),
       });
 
-      navigate(`/dashboard/${role}`);
+      // Send email verification
+      try {
+        await sendEmailVerification(userCred.user, {
+          url: `${window.location.origin}/dashboard/${role}`,
+          handleCodeInApp: false,
+        });
+
+        alert("Account created! Please check your email to verify your account before logging in.");
+        navigate("/login");
+      } catch (emailError) {
+        console.warn("Failed to send verification email:", emailError);
+        // Still allow user to proceed even if email fails
+        alert("Account created! You can now log in, but please verify your email later.");
+        navigate(`/dashboard/${role}`);
+      }
     } catch (err: unknown) {
       // Type guard
       if (err instanceof Error) {
