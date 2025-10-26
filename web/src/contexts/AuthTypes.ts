@@ -86,4 +86,9 @@ export interface DeviceContextValue {
   removeDevice: (deviceId: string) => Promise<void>;
   updateDeviceStatus: (deviceId: string, status: DeviceStatus) => Promise<void>;
   refreshDevices: () => Promise<void>;
+  connectBluetoothDevice: (deviceType: 'heart_rate' | 'blood_pressure' | 'glucose' | 'temperature' | 'pulse_oximeter') => Promise<{ id: string; name: string; type: string }>;
+  connectGoogleFit: () => Promise<boolean>;
+  disconnectBluetoothDevice: (deviceId: string) => Promise<void>;
+  disconnectGoogleFit: () => Promise<void>;
+  manualSync: () => Promise<void>;
 }
