@@ -4,13 +4,47 @@ import { doc, updateDoc, arrayUnion, arrayRemove, onSnapshot, Timestamp } from '
 import { db } from '../services/firebase';
 import { useAuth } from '../hooks/useAuth';
 import type { Device, DeviceContextValue, DeviceStatus } from './AuthTypes';
+import { vitalsSyncService } from '../services/vitalsSyncService';
+import { bluetoothService } from '../services/bluetoothService';
 
 const DeviceContext = createContext<DeviceContextValue | undefined>(undefined);
+
+// Helper function to map Bluetooth device types to our Device types
+function mapBluetoothTypeToDeviceType(
+  bluetoothType: 'heart_rate' | 'blood_pressure' | 'glucose' | 'temperature' | 'pulse_oximeter'
+): Device['type'] {
+  const mapping: Record<typeof bluetoothType, Device['type']> = {
+    heart_rate: 'smartwatch',
+    blood_pressure: 'blood_pressure_monitor',
+    glucose: 'glucose_monitor',
+    temperature: 'other',
+    pulse_oximeter: 'pulse_oximeter',
+  };
+  return mapping[bluetoothType];
+}
 
 export function DeviceProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [devices, setDevices] = useState<Device[]>([]);
   const [activeDevice, setActiveDeviceState] = useState<Device | null>(null);
+
+  // Initialize vitals sync service when user is available
+  useEffect(() => {
+    if (user?.uid) {
+      vitalsSyncService.initialize({
+        userId: user.uid,
+        autoSyncInterval: 5, // Sync every 5 minutes
+        googleFitClientId: import.meta.env.VITE_GOOGLE_FIT_CLIENT_ID,
+      }).catch(console.error);
+
+      // Start auto-sync
+      vitalsSyncService.startAutoSync(5);
+    }
+
+    return () => {
+      vitalsSyncService.stopAutoSync();
+    };
+  }, [user?.uid]);
 
   // Real-time listener for user's connected devices
   useEffect(() => {
@@ -134,6 +168,136 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const connectBluetoothDevice = async (
+    deviceType: 'heart_rate' | 'blood_pressure' | 'glucose' | 'temperature' | 'pulse_oximeter'
+  ) => {
+    if (!user?.uid) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Connect via vitals sync service
+      const deviceInfo = await vitalsSyncService.connectBluetoothDevice(deviceType);
+
+      // Map device type to our Device type
+      const mappedType = mapBluetoothTypeToDeviceType(deviceType);
+
+      // Add device to Firebase
+      const newDevice: Device = {
+        id: deviceInfo.id,
+        name: deviceInfo.name,
+        type: mappedType,
+        status: 'online',
+        manufacturer: 'Bluetooth Device',
+        lastSyncTime: Timestamp.now(),
+        addedAt: Timestamp.now(),
+      };
+
+      const userDocRef = doc(db, 'users', user.uid);
+      await updateDoc(userDocRef, {
+        connectedDevices: arrayUnion(newDevice),
+      });
+
+      // If this is the first device, set it as active
+      if (devices.length === 0) {
+        await updateDoc(userDocRef, {
+          activeDeviceId: newDevice.id,
+        });
+      }
+
+      return deviceInfo;
+    } catch (error) {
+      console.error('Error connecting Bluetooth device:', error);
+      throw error;
+    }
+  };
+
+  const connectGoogleFit = async () => {
+    if (!user?.uid) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      const success = await vitalsSyncService.connectGoogleFit();
+
+      if (success) {
+        // Add Google Fit as a virtual device
+        const googleFitDevice: Device = {
+          id: 'google-fit',
+          name: 'Google Fit',
+          type: 'other',
+          status: 'online',
+          manufacturer: 'Google',
+          lastSyncTime: Timestamp.now(),
+          addedAt: Timestamp.now(),
+        };
+
+        const userDocRef = doc(db, 'users', user.uid);
+
+        // Check if Google Fit device already exists
+        const existingGoogleFit = devices.find(d => d.id === 'google-fit');
+        if (!existingGoogleFit) {
+          await updateDoc(userDocRef, {
+            connectedDevices: arrayUnion(googleFitDevice),
+          });
+
+          // If this is the first device, set it as active
+          if (devices.length === 0) {
+            await updateDoc(userDocRef, {
+              activeDeviceId: googleFitDevice.id,
+            });
+          }
+        } else {
+          // Update status to online
+          await updateDeviceStatus('google-fit', 'online');
+        }
+      }
+
+      return success;
+    } catch (error) {
+      console.error('Error connecting Google Fit:', error);
+      throw error;
+    }
+  };
+
+  const disconnectBluetoothDevice = async (deviceId: string) => {
+    if (!user?.uid) return;
+
+    try {
+      await vitalsSyncService.disconnectBluetoothDevice(deviceId);
+      await removeDevice(deviceId);
+    } catch (error) {
+      console.error('Error disconnecting Bluetooth device:', error);
+      throw error;
+    }
+  };
+
+  const disconnectGoogleFit = async () => {
+    if (!user?.uid) return;
+
+    try {
+      await vitalsSyncService.disconnectGoogleFit();
+      await updateDeviceStatus('google-fit', 'offline');
+    } catch (error) {
+      console.error('Error disconnecting Google Fit:', error);
+      throw error;
+    }
+  };
+
+  const manualSync = async () => {
+    if (!user?.uid) return;
+
+    try {
+      await updateDeviceStatus(activeDevice?.id || '', 'syncing');
+      await vitalsSyncService.manualSync();
+      await updateDeviceStatus(activeDevice?.id || '', 'online');
+    } catch (error) {
+      console.error('Error during manual sync:', error);
+      await updateDeviceStatus(activeDevice?.id || '', 'error');
+      throw error;
+    }
+  };
+
   const value: DeviceContextValue = {
     activeDevice,
     setActiveDevice,
@@ -141,7 +305,12 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
     addDevice,
     removeDevice,
     updateDeviceStatus,
-    refreshDevices
+    refreshDevices,
+    connectBluetoothDevice,
+    connectGoogleFit,
+    disconnectBluetoothDevice,
+    disconnectGoogleFit,
+    manualSync,
   };
 
   return (

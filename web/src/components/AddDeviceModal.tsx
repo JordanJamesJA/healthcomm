@@ -9,10 +9,11 @@ interface AddDeviceModalProps {
 }
 
 export default function AddDeviceModal({ isOpen, onClose }: AddDeviceModalProps) {
-  const { addDevice } = useDevice();
+  const { addDevice, connectBluetoothDevice, connectGoogleFit } = useDevice();
   const { darkMode } = useDarkMode();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectionMode, setConnectionMode] = useState<'manual' | 'bluetooth' | 'googlefit'>('bluetooth');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -71,6 +72,38 @@ export default function AddDeviceModal({ isOpen, onClose }: AddDeviceModalProps)
     }));
   };
 
+  const handleBluetoothConnect = async (deviceType: 'heart_rate' | 'blood_pressure' | 'glucose' | 'temperature' | 'pulse_oximeter') => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      await connectBluetoothDevice(deviceType);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect to Bluetooth device');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleFitConnect = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const success = await connectGoogleFit();
+      if (success) {
+        onClose();
+      } else {
+        setError('Failed to connect to Google Fit');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect to Google Fit');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-lg shadow-xl max-w-md w-full mx-4 p-6`}>
@@ -93,7 +126,154 @@ export default function AddDeviceModal({ isOpen, onClose }: AddDeviceModalProps)
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Connection Mode Selection */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium mb-3">Connection Method</label>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setConnectionMode('bluetooth')}
+              className={`p-3 rounded-md border-2 transition-all ${
+                connectionMode === 'bluetooth'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
+                  : darkMode ? 'border-gray-600 hover:border-gray-500' : 'border-gray-300 hover:border-gray-400'
+              }`}
+              disabled={loading}
+            >
+              <div className="text-center">
+                <svg className="w-8 h-8 mx-auto mb-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/>
+                </svg>
+                <div className="text-xs font-medium">Bluetooth</div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setConnectionMode('googlefit')}
+              className={`p-3 rounded-md border-2 transition-all ${
+                connectionMode === 'googlefit'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
+                  : darkMode ? 'border-gray-600 hover:border-gray-500' : 'border-gray-300 hover:border-gray-400'
+              }`}
+              disabled={loading}
+            >
+              <div className="text-center">
+                <svg className="w-8 h-8 mx-auto mb-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20 13V6c0-1.103-.897-2-2-2h-3c0-1.103-.897-2-2-2s-2 .897-2 2H8c-1.103 0-2 .897-2 2v13c0 1.103.897 2 2 2h10c1.103 0 2-.897 2-2v-1h-2v1H8V6h3v2h2V6h3v7h2z"/>
+                  <path d="m11 18 1-3h2l1 3h-4zm3.5-11.5a1.5 1.5 0 1 1-3.001-.001 1.5 1.5 0 0 1 3.001.001z"/>
+                </svg>
+                <div className="text-xs font-medium">Google Fit</div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setConnectionMode('manual')}
+              className={`p-3 rounded-md border-2 transition-all ${
+                connectionMode === 'manual'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
+                  : darkMode ? 'border-gray-600 hover:border-gray-500' : 'border-gray-300 hover:border-gray-400'
+              }`}
+              disabled={loading}
+            >
+              <div className="text-center">
+                <svg className="w-8 h-8 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                <div className="text-xs font-medium">Manual</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Bluetooth Connection UI */}
+        {connectionMode === 'bluetooth' && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Select the type of Bluetooth device you want to connect:
+            </p>
+            <button
+              type="button"
+              onClick={() => handleBluetoothConnect('heart_rate')}
+              className="w-full p-4 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900 transition-all text-left disabled:opacity-50"
+              disabled={loading}
+            >
+              <div className="font-medium">Heart Rate Monitor</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Smartwatch, fitness tracker, chest strap</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBluetoothConnect('blood_pressure')}
+              className="w-full p-4 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900 transition-all text-left disabled:opacity-50"
+              disabled={loading}
+            >
+              <div className="font-medium">Blood Pressure Monitor</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Arm cuff, wrist monitor</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBluetoothConnect('pulse_oximeter')}
+              className="w-full p-4 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900 transition-all text-left disabled:opacity-50"
+              disabled={loading}
+            >
+              <div className="font-medium">Pulse Oximeter</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Finger clip, wearable sensor</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBluetoothConnect('glucose')}
+              className="w-full p-4 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900 transition-all text-left disabled:opacity-50"
+              disabled={loading}
+            >
+              <div className="font-medium">Glucose Monitor</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Blood glucose meter, CGM</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBluetoothConnect('temperature')}
+              className="w-full p-4 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900 transition-all text-left disabled:opacity-50"
+              disabled={loading}
+            >
+              <div className="font-medium">Thermometer</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Digital thermometer, ear thermometer</div>
+            </button>
+            {loading && (
+              <div className="text-center text-sm text-blue-600 dark:text-blue-400 mt-4">
+                Searching for devices...
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Google Fit Connection UI */}
+        {connectionMode === 'googlefit' && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Connect to Google Fit to sync health data from your Android device and connected fitness trackers.
+            </p>
+            <div className="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+              <h4 className="font-medium mb-2">What data will be synced?</h4>
+              <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300">
+                <li>• Heart rate measurements</li>
+                <li>• Blood pressure readings</li>
+                <li>• Blood glucose levels</li>
+                <li>• Body temperature</li>
+                <li>• Oxygen saturation (SpO2)</li>
+              </ul>
+            </div>
+            <button
+              type="button"
+              onClick={handleGoogleFitConnect}
+              className="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              disabled={loading}
+            >
+              {loading ? 'Connecting...' : 'Connect Google Fit'}
+            </button>
+          </div>
+        )}
+
+        {/* Manual Entry Form */}
+        {connectionMode === 'manual' && (
+          <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">
               Device Name <span className="text-red-500">*</span>
@@ -186,24 +366,39 @@ export default function AddDeviceModal({ isOpen, onClose }: AddDeviceModalProps)
             />
           </div>
 
-          <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className={`flex-1 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-md transition-colors`}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading}
+              >
+                {loading ? 'Adding...' : 'Add Device'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Cancel button for non-manual modes */}
+        {connectionMode !== 'manual' && (
+          <div className="mt-6">
             <button
               type="button"
               onClick={onClose}
-              className={`flex-1 px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-md transition-colors`}
+              className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-md transition-colors`}
               disabled={loading}
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading}
-            >
-              {loading ? 'Adding...' : 'Add Device'}
-            </button>
           </div>
-        </form>
+        )}
       </div>
     </div>
   );
