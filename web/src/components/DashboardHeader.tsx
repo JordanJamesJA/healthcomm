@@ -1,7 +1,7 @@
 import { useContext } from "react";
 import AuthContext from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { FaHeartbeat } from "react-icons/fa";
+import { FaHeartbeat, FaCog } from "react-icons/fa";
 import { useDarkMode } from "../contexts/useDarkMode";
 
 export default function DashboardHeader() {
@@ -28,6 +28,13 @@ export default function DashboardHeader() {
           className="border px-4 py-1 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
         >
           {darkMode ? "Light Mode" : "Dark "}
+        </button>
+
+        <button
+          onClick={() => navigate("/settings")}
+          className="border px-4 py-1 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+        >
+          <FaCog /> Settings
         </button>
 
         <button
