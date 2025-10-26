@@ -1,18 +1,251 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2025, 11, 19);
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
     }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getTargetUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+
+    function isRole(role) {
+      return isAuthenticated() && getUserData().role == role;
+    }
+
+    function isPatient() {
+      return isRole('patient');
+    }
+
+    function isCaretaker() {
+      return isRole('caretaker');
+    }
+
+    function isMedical() {
+      return isRole('medical');
+    }
+
+    // Check if user is assigned as caretaker for this patient
+    function isAssignedCaretaker(patientId) {
+      return isCaretaker() && getTargetUserData(patientId).assignedCaretakerId == request.auth.uid;
+    }
+
+    // Check if user is assigned as doctor for this patient
+    function isAssignedDoctor(patientId) {
+      return isMedical() && getTargetUserData(patientId).assignedDoctorId == request.auth.uid;
+    }
+
+    // Check if user has access to patient data (owner, assigned caretaker, or assigned doctor)
+    function hasPatientAccess(patientId) {
+      return isOwner(patientId) || isAssignedCaretaker(patientId) || isAssignedDoctor(patientId);
+    }
+
+    // Validate required user fields on creation
+    function isValidUserCreate() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['uid', 'email', 'role', 'firstName', 'lastName', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             data.role in ['patient', 'caretaker', 'medical'] &&
+             data.createdAt == request.time;
+    }
+
+    // Validate user fields on update (cannot change uid, email, role, createdAt)
+    function isValidUserUpdate() {
+      let data = request.resource.data;
+      let existing = resource.data;
+      return data.uid == existing.uid &&
+             data.email == existing.email &&
+             data.role == existing.role &&
+             data.createdAt == existing.createdAt;
+    }
+
+    // Validate vitals reading data
+    function isValidVitalsReading() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['timestamp', 'deviceId']) &&
+             data.timestamp is timestamp &&
+             data.deviceId is string &&
+             // At least one vital must be present
+             (data.keys().hasAny(['heartRate', 'bloodPressureSystolic', 'bloodPressureDiastolic',
+                                  'oxygenLevel', 'temperature', 'glucose', 'respiration'])) &&
+             // Validate data types if present
+             (!('heartRate' in data) || data.heartRate is number) &&
+             (!('bloodPressureSystolic' in data) || data.bloodPressureSystolic is number) &&
+             (!('bloodPressureDiastolic' in data) || data.bloodPressureDiastolic is number) &&
+             (!('oxygenLevel' in data) || data.oxygenLevel is number) &&
+             (!('temperature' in data) || data.temperature is number) &&
+             (!('glucose' in data) || data.glucose is number) &&
+             (!('respiration' in data) || data.respiration is number);
+    }
+
+    // Validate alert data
+    function isValidAlert() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['title', 'message', 'severity', 'timestamp']) &&
+             data.title is string &&
+             data.message is string &&
+             data.severity in ['low', 'medium', 'high'] &&
+             data.timestamp is timestamp;
+    }
+
+    // Validate audit log entry
+    function isValidAuditLog() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['action', 'userId', 'timestamp', 'details']) &&
+             data.userId == request.auth.uid &&
+             data.timestamp == request.time &&
+             data.action is string &&
+             data.details is map;
+    }
+
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    match /users/{userId} {
+      // Users can read their own document
+      // Caretakers can read their assigned patients
+      // Medical professionals can read their assigned patients
+      allow read: if isOwner(userId) ||
+                     isAssignedCaretaker(userId) ||
+                     isAssignedDoctor(userId);
+
+      // Only the user can create their own document (on signup)
+      allow create: if isOwner(userId) && isValidUserCreate();
+
+      // Users can update their own document (but not critical fields)
+      allow update: if isOwner(userId) && isValidUserUpdate();
+
+      // Users can delete their own document
+      allow delete: if isOwner(userId);
+
+      // Allow caretakers and medical professionals to query for assigned patients
+      // This is needed for dashboard patient lists
+      allow list: if isAuthenticated();
+    }
+
+    // ============================================
+    // PATIENTS COLLECTION (Vitals & Alerts)
+    // ============================================
+    match /patients/{patientId} {
+      // Patient document itself (metadata)
+      allow read, write: if hasPatientAccess(patientId);
+
+      // Vitals subcollection
+      match /vitals/{vitalId} {
+        // Read: Patient, assigned caretaker, or assigned doctor
+        allow read: if hasPatientAccess(patientId);
+
+        // Write: Only the patient can create/update their own vitals
+        allow create: if isOwner(patientId) && isValidVitalsReading();
+        allow update: if isOwner(patientId) && isValidVitalsReading();
+
+        // Delete: Only the patient can delete their vitals
+        allow delete: if isOwner(patientId);
+
+        // Allow querying/listing with proper access
+        allow list: if hasPatientAccess(patientId);
+      }
+
+      // Alerts subcollection
+      match /alerts/{alertId} {
+        // Read: Patient, assigned caretaker, or assigned doctor
+        allow read: if hasPatientAccess(patientId);
+
+        // Write: Only the patient can create alerts (via vitals sync service)
+        allow create: if isOwner(patientId) && isValidAlert();
+        allow update: if isOwner(patientId) && isValidAlert();
+
+        // Delete: Patient or assigned medical professional can delete
+        allow delete: if isOwner(patientId) || isAssignedDoctor(patientId);
+
+        // Allow querying/listing with proper access
+        allow list: if hasPatientAccess(patientId);
+      }
+    }
+
+    // ============================================
+    // AUDIT LOGS COLLECTION
+    // ============================================
+    match /auditLogs/{logId} {
+      // Only allow creating audit logs (no read/update/delete for users)
+      // In production, only Cloud Functions should write audit logs
+      allow create: if isAuthenticated() && isValidAuditLog();
+
+      // Only the user can read their own audit logs
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // No updates or deletes allowed
+      allow update, delete: if false;
+    }
+
+    // ============================================
+    // INVITATIONS COLLECTION (for caretaker/doctor assignments)
+    // ============================================
+    match /invitations/{invitationId} {
+      // Anyone can read invitations sent to them
+      allow read: if isAuthenticated() &&
+                     (resource.data.recipientEmail == request.auth.token.email ||
+                      resource.data.senderId == request.auth.uid);
+
+      // Users can create invitations
+      allow create: if isAuthenticated() &&
+                       request.resource.data.senderId == request.auth.uid &&
+                       request.resource.data.keys().hasAll(['senderId', 'recipientEmail', 'type', 'status', 'createdAt']) &&
+                       request.resource.data.type in ['caretaker', 'doctor'] &&
+                       request.resource.data.status == 'pending' &&
+                       request.resource.data.createdAt == request.time;
+
+      // Recipients can update to accept/decline
+      allow update: if isAuthenticated() &&
+                       resource.data.recipientEmail == request.auth.token.email &&
+                       request.resource.data.status in ['accepted', 'declined'];
+
+      // Sender can delete their own invitations
+      allow delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
+
+      // Allow listing invitations for dashboard
+      allow list: if isAuthenticated();
+    }
+
+    // ============================================
+    // MEDICAL NOTES COLLECTION
+    // ============================================
+    match /medicalNotes/{noteId} {
+      // Only medical professionals can create notes
+      allow create: if isMedical() &&
+                       request.resource.data.doctorId == request.auth.uid &&
+                       request.resource.data.keys().hasAll(['patientId', 'doctorId', 'note', 'createdAt']) &&
+                       request.resource.data.createdAt == request.time;
+
+      // Patient, assigned caretaker, or note author can read
+      allow read: if hasPatientAccess(resource.data.patientId) ||
+                     resource.data.doctorId == request.auth.uid;
+
+      // Only the note author can update their notes
+      allow update: if isMedical() && resource.data.doctorId == request.auth.uid;
+
+      // Only the note author can delete their notes
+      allow delete: if isMedical() && resource.data.doctorId == request.auth.uid;
+
+      // Allow listing with proper access
+      allow list: if isAuthenticated();
+    }
+
+    // ============================================
+    // DENY ALL OTHER COLLECTIONS
+    // ============================================
+    // Any collection not explicitly defined above is denied
   }
 }
