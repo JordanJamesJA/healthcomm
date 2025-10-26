@@ -6,21 +6,9 @@
 
 import { collection, addDoc, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import { bluetoothService, VitalsReading } from './bluetoothService';
+import { bluetoothService } from './bluetoothService';
 import { healthPlatformService } from './healthPlatformService';
-
-export interface SyncConfig {
-  userId: string;
-  autoSyncInterval?: number; // minutes
-  googleFitClientId?: string;
-}
-
-export interface SyncStatus {
-  isBluetoothConnected: boolean;
-  isGoogleFitConnected: boolean;
-  lastSyncTime?: Date;
-  syncedDevices: string[];
-}
+import type { VitalsReading, SyncConfig, SyncStatus } from './types';
 
 class VitalsSyncService {
   private config?: SyncConfig;

@@ -3,6 +3,8 @@
  * Supports standard Bluetooth GATT services for health monitoring devices
  */
 
+import type { BluetoothDeviceInfo, VitalsReading } from './types';
+
 // Standard Bluetooth GATT Service UUIDs
 const SERVICES = {
   HEART_RATE: 0x180d,
@@ -23,25 +25,6 @@ const CHARACTERISTICS = {
   PLX_SPOT_CHECK: 0x2a5e,
   BATTERY_LEVEL: 0x2a19,
 } as const;
-
-export interface BluetoothDeviceInfo {
-  id: string;
-  name: string;
-  type: string;
-  manufacturer?: string;
-  batteryLevel?: number;
-}
-
-export interface VitalsReading {
-  heartRate?: number;
-  bloodPressureSystolic?: number;
-  bloodPressureDiastolic?: number;
-  oxygenLevel?: number;
-  temperature?: number;
-  glucose?: number;
-  timestamp: Date;
-  deviceId: string;
-}
 
 class BluetoothService {
   private connectedDevices: Map<string, BluetoothDevice> = new Map();

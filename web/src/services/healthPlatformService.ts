@@ -3,7 +3,7 @@
  * This service provides a unified interface for accessing health data from various platforms
  */
 
-import { VitalsReading } from './bluetoothService';
+import type { VitalsReading, HealthPlatformConfig, DataPoint } from './types';
 
 // Google Fit API configuration
 const GOOGLE_FIT_SCOPES = [
@@ -23,17 +23,6 @@ const DATA_TYPES = {
   OXYGEN_SATURATION: 'com.google.oxygen_saturation',
   HEART_RATE_VARIABILITY: 'com.google.heart_rate.variability',
 };
-
-export interface HealthPlatformConfig {
-  googleFitClientId?: string;
-  appleHealthEnabled?: boolean;
-}
-
-export interface DataPoint {
-  value: number;
-  timestamp: Date;
-  dataType: string;
-}
 
 class HealthPlatformService {
   private googleAuth: any = null;
