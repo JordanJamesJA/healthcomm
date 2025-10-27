@@ -4,7 +4,7 @@
  * Supports patient choice between roles and manual escalation
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
 import type { AssignmentReason, CareTeamRole } from "../contexts/AuthTypes";
@@ -53,16 +53,7 @@ export default function CareTeamAssignmentCard({
   const { assignMember, loading } = useAssignCareTeamMember();
   const { escalate, loading: escalating } = useEscalateToDoctor();
 
-  useEffect(() => {
-    if (assignedDoctorId) {
-      loadDoctorData();
-    }
-    if (assignedCaretakerId) {
-      loadCaretakerData();
-    }
-  }, [assignedDoctorId, assignedCaretakerId]);
-
-  const loadDoctorData = async () => {
+  const loadDoctorData = useCallback(async () => {
     if (!assignedDoctorId) return;
 
     try {
@@ -73,9 +64,9 @@ export default function CareTeamAssignmentCard({
     } catch (error) {
       console.error("Error loading doctor data:", error);
     }
-  };
+  }, [assignedDoctorId]);
 
-  const loadCaretakerData = async () => {
+  const loadCaretakerData = useCallback(async () => {
     if (!assignedCaretakerId) return;
 
     try {
@@ -86,7 +77,16 @@ export default function CareTeamAssignmentCard({
     } catch (error) {
       console.error("Error loading caretaker data:", error);
     }
-  };
+  }, [assignedCaretakerId]);
+
+  useEffect(() => {
+    if (assignedDoctorId) {
+      loadDoctorData();
+    }
+    if (assignedCaretakerId) {
+      loadCaretakerData();
+    }
+  }, [assignedDoctorId, assignedCaretakerId, loadDoctorData, loadCaretakerData]);
 
   const handleAssign = async () => {
     try {
