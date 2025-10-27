@@ -1,70 +1,38 @@
 /**
  * Apple HealthKit Service for iOS devices
  * This service provides access to health data from Apple Health app on iOS devices
- * Requires Capacitor and @capacitor-community/health plugin
+ * Requires Capacitor and capacitor-health plugin
+ *
+ * NOTE: Current implementation uses capacitor-health plugin which has limited support
+ * for medical vitals. Currently only supports heart rate from the required vitals.
+ * Full support requires a custom plugin or different solution for:
+ * - Blood Pressure (Systolic/Diastolic)
+ * - Blood Glucose
+ * - Body Temperature
+ * - Oxygen Saturation
+ * - Respiratory Rate
  */
 
+import { Capacitor } from '@capacitor/core';
+import { Health } from 'capacitor-health';
 import type { VitalsReading, DataPoint } from './types';
 
-// HealthKit data types
-const HEALTH_KIT_TYPES = {
-  HEART_RATE: 'HKQuantityTypeIdentifierHeartRate',
-  BLOOD_PRESSURE_SYSTOLIC: 'HKQuantityTypeIdentifierBloodPressureSystolic',
-  BLOOD_PRESSURE_DIASTOLIC: 'HKQuantityTypeIdentifierBloodPressureDiastolic',
-  BLOOD_GLUCOSE: 'HKQuantityTypeIdentifierBloodGlucose',
-  BODY_TEMPERATURE: 'HKQuantityTypeIdentifierBodyTemperature',
-  OXYGEN_SATURATION: 'HKQuantityTypeIdentifierOxygenSaturation',
-  RESPIRATORY_RATE: 'HKQuantityTypeIdentifierRespiratoryRate',
-};
-
-// Type for HealthKit plugin
-interface HealthKitPlugin {
-  requestAuthorization(options: {
-    read: string[];
-    write?: string[];
-  }): Promise<void>;
-
-  isAvailable(): Promise<{ available: boolean }>;
-
-  queryHKitSampleType(options: {
-    sampleName: string;
-    startDate: string;
-    endDate: string;
-    limit?: number;
-  }): Promise<{ data: any[] }>;
-}
-
-// Declare Capacitor plugins
-declare global {
-  interface Window {
-    Capacitor?: {
-      Plugins: {
-        Health?: HealthKitPlugin;
-      };
-      isNativePlatform(): boolean;
-      getPlatform(): string;
-    };
-  }
-}
+// HealthKit data types that we need (note: not all are currently supported by capacitor-health)
+// Kept for reference and future custom plugin implementation
+// const HEALTH_KIT_TYPES = {
+//   HEART_RATE: 'HKQuantityTypeIdentifierHeartRate',
+//   BLOOD_PRESSURE_SYSTOLIC: 'HKQuantityTypeIdentifierBloodPressureSystolic',
+//   BLOOD_PRESSURE_DIASTOLIC: 'HKQuantityTypeIdentifierBloodPressureDiastolic',
+//   BLOOD_GLUCOSE: 'HKQuantityTypeIdentifierBloodGlucose',
+//   BODY_TEMPERATURE: 'HKQuantityTypeIdentifierBodyTemperature',
+//   OXYGEN_SATURATION: 'HKQuantityTypeIdentifierOxygenSaturation',
+//   RESPIRATORY_RATE: 'HKQuantityTypeIdentifierRespiratoryRate',
+// };
 
 class HealthKitService {
   private isAuthorized = false;
   private onDataCallback?: (reading: VitalsReading) => void;
   private syncInterval?: NodeJS.Timeout;
-  private healthPlugin?: HealthKitPlugin;
-
-  constructor() {
-    this.initializePlugin();
-  }
-
-  /**
-   * Initialize the HealthKit plugin
-   */
-  private initializePlugin(): void {
-    if (window.Capacitor?.Plugins?.Health) {
-      this.healthPlugin = window.Capacitor.Plugins.Health;
-    }
-  }
 
   /**
    * Check if HealthKit is available on this device
@@ -72,20 +40,19 @@ class HealthKitService {
   async isAvailable(): Promise<boolean> {
     try {
       // Check if we're on a native iOS platform
-      if (!window.Capacitor?.isNativePlatform()) {
+      if (!Capacitor.isNativePlatform()) {
+        console.log('Not a native platform');
         return false;
       }
 
-      if (window.Capacitor.getPlatform() !== 'ios') {
+      if (Capacitor.getPlatform() !== 'ios') {
+        console.log('Not iOS platform, platform is:', Capacitor.getPlatform());
         return false;
       }
 
-      if (!this.healthPlugin) {
-        console.warn('HealthKit plugin not found');
-        return false;
-      }
-
-      const result = await this.healthPlugin.isAvailable();
+      // Use the Health plugin to check availability
+      const result = await Health.isHealthAvailable();
+      console.log('HealthKit availability check result:', result);
       return result.available;
     } catch (error) {
       console.error('Error checking HealthKit availability:', error);
@@ -97,29 +64,27 @@ class HealthKitService {
    * Request authorization to access HealthKit data
    */
   async requestAuthorization(): Promise<boolean> {
-    if (!this.healthPlugin) {
-      throw new Error('HealthKit plugin not available');
-    }
-
     if (!(await this.isAvailable())) {
       throw new Error('HealthKit is not available on this device');
     }
 
     try {
-      await this.healthPlugin.requestAuthorization({
-        read: [
-          HEALTH_KIT_TYPES.HEART_RATE,
-          HEALTH_KIT_TYPES.BLOOD_PRESSURE_SYSTOLIC,
-          HEALTH_KIT_TYPES.BLOOD_PRESSURE_DIASTOLIC,
-          HEALTH_KIT_TYPES.BLOOD_GLUCOSE,
-          HEALTH_KIT_TYPES.BODY_TEMPERATURE,
-          HEALTH_KIT_TYPES.OXYGEN_SATURATION,
-          HEALTH_KIT_TYPES.RESPIRATORY_RATE,
+      // Request permissions using capacitor-health API
+      // Note: Currently only heart rate is fully supported by capacitor-health
+      await Health.requestHealthPermissions({
+        permissions: [
+          'READ_HEART_RATE',
+          // TODO: Add other permissions when custom plugin is available
+          // 'READ_BLOOD_PRESSURE',
+          // 'READ_BLOOD_GLUCOSE',
+          // 'READ_BODY_TEMPERATURE',
+          // 'READ_OXYGEN_SATURATION',
+          // 'READ_RESPIRATORY_RATE',
         ],
-        write: [], // We only need read access
       });
 
       this.isAuthorized = true;
+      console.log('HealthKit authorization granted');
       return true;
     } catch (error) {
       console.error('Error requesting HealthKit authorization:', error);
@@ -138,19 +103,35 @@ class HealthKitService {
    * Fetch heart rate data from HealthKit
    */
   async fetchHeartRate(startTime: Date, endTime: Date): Promise<DataPoint[]> {
-    if (!this.isAuthorized || !this.healthPlugin) {
+    if (!this.isAuthorized) {
       throw new Error('HealthKit not authorized');
     }
 
     try {
-      const result = await this.healthPlugin.queryHKitSampleType({
-        sampleName: HEALTH_KIT_TYPES.HEART_RATE,
+      // Query workouts with heart rate data
+      const result = await Health.queryWorkouts({
         startDate: startTime.toISOString(),
         endDate: endTime.toISOString(),
-        limit: 1000,
+        includeHeartRate: true,
+        includeRoute: false,
+        includeSteps: false,
       });
 
-      return this.parseHealthKitData(result.data, 'heartRate');
+      // Extract heart rate samples from workouts
+      const heartRateData: DataPoint[] = [];
+      result.workouts.forEach(workout => {
+        if (workout.heartRate) {
+          workout.heartRate.forEach(sample => {
+            heartRateData.push({
+              value: sample.bpm,
+              timestamp: new Date(sample.timestamp),
+              dataType: 'heartRate',
+            });
+          });
+        }
+      });
+
+      return heartRateData;
     } catch (error) {
       console.error('Error fetching heart rate from HealthKit:', error);
       return [];
@@ -159,105 +140,38 @@ class HealthKitService {
 
   /**
    * Fetch blood pressure data from HealthKit
+   * TODO: Not yet implemented - requires custom plugin or different library
    */
-  async fetchBloodPressure(startTime: Date, endTime: Date): Promise<DataPoint[]> {
-    if (!this.isAuthorized || !this.healthPlugin) {
-      throw new Error('HealthKit not authorized');
-    }
-
-    try {
-      const [systolicResult, diastolicResult] = await Promise.all([
-        this.healthPlugin.queryHKitSampleType({
-          sampleName: HEALTH_KIT_TYPES.BLOOD_PRESSURE_SYSTOLIC,
-          startDate: startTime.toISOString(),
-          endDate: endTime.toISOString(),
-          limit: 1000,
-        }),
-        this.healthPlugin.queryHKitSampleType({
-          sampleName: HEALTH_KIT_TYPES.BLOOD_PRESSURE_DIASTOLIC,
-          startDate: startTime.toISOString(),
-          endDate: endTime.toISOString(),
-          limit: 1000,
-        }),
-      ]);
-
-      const systolicData = this.parseHealthKitData(systolicResult.data, 'systolic');
-      const diastolicData = this.parseHealthKitData(diastolicResult.data, 'diastolic');
-
-      return [...systolicData, ...diastolicData];
-    } catch (error) {
-      console.error('Error fetching blood pressure from HealthKit:', error);
-      return [];
-    }
+  async fetchBloodPressure(_startTime: Date, _endTime: Date): Promise<DataPoint[]> {
+    console.warn('Blood pressure fetching not yet implemented - requires custom HealthKit plugin');
+    return [];
   }
 
   /**
    * Fetch blood glucose data from HealthKit
+   * TODO: Not yet implemented - requires custom plugin or different library
    */
-  async fetchBloodGlucose(startTime: Date, endTime: Date): Promise<DataPoint[]> {
-    if (!this.isAuthorized || !this.healthPlugin) {
-      throw new Error('HealthKit not authorized');
-    }
-
-    try {
-      const result = await this.healthPlugin.queryHKitSampleType({
-        sampleName: HEALTH_KIT_TYPES.BLOOD_GLUCOSE,
-        startDate: startTime.toISOString(),
-        endDate: endTime.toISOString(),
-        limit: 1000,
-      });
-
-      return this.parseHealthKitData(result.data, 'glucose');
-    } catch (error) {
-      console.error('Error fetching blood glucose from HealthKit:', error);
-      return [];
-    }
+  async fetchBloodGlucose(_startTime: Date, _endTime: Date): Promise<DataPoint[]> {
+    console.warn('Blood glucose fetching not yet implemented - requires custom HealthKit plugin');
+    return [];
   }
 
   /**
    * Fetch body temperature data from HealthKit
+   * TODO: Not yet implemented - requires custom plugin or different library
    */
-  async fetchBodyTemperature(startTime: Date, endTime: Date): Promise<DataPoint[]> {
-    if (!this.isAuthorized || !this.healthPlugin) {
-      throw new Error('HealthKit not authorized');
-    }
-
-    try {
-      const result = await this.healthPlugin.queryHKitSampleType({
-        sampleName: HEALTH_KIT_TYPES.BODY_TEMPERATURE,
-        startDate: startTime.toISOString(),
-        endDate: endTime.toISOString(),
-        limit: 1000,
-      });
-
-      return this.parseHealthKitData(result.data, 'temperature');
-    } catch (error) {
-      console.error('Error fetching body temperature from HealthKit:', error);
-      return [];
-    }
+  async fetchBodyTemperature(_startTime: Date, _endTime: Date): Promise<DataPoint[]> {
+    console.warn('Body temperature fetching not yet implemented - requires custom HealthKit plugin');
+    return [];
   }
 
   /**
    * Fetch oxygen saturation data from HealthKit
+   * TODO: Not yet implemented - requires custom plugin or different library
    */
-  async fetchOxygenSaturation(startTime: Date, endTime: Date): Promise<DataPoint[]> {
-    if (!this.isAuthorized || !this.healthPlugin) {
-      throw new Error('HealthKit not authorized');
-    }
-
-    try {
-      const result = await this.healthPlugin.queryHKitSampleType({
-        sampleName: HEALTH_KIT_TYPES.OXYGEN_SATURATION,
-        startDate: startTime.toISOString(),
-        endDate: endTime.toISOString(),
-        limit: 1000,
-      });
-
-      return this.parseHealthKitData(result.data, 'oxygenLevel');
-    } catch (error) {
-      console.error('Error fetching oxygen saturation from HealthKit:', error);
-      return [];
-    }
+  async fetchOxygenSaturation(_startTime: Date, _endTime: Date): Promise<DataPoint[]> {
+    console.warn('Oxygen saturation fetching not yet implemented - requires custom HealthKit plugin');
+    return [];
   }
 
   /**
@@ -354,55 +268,6 @@ class HealthKitService {
     }
   }
 
-  /**
-   * Parse HealthKit data points
-   */
-  private parseHealthKitData(data: any[], dataType: string): DataPoint[] {
-    if (!data || data.length === 0) {
-      return [];
-    }
-
-    return data.map(sample => ({
-      value: this.extractValue(sample, dataType),
-      timestamp: new Date(sample.startDate || sample.endDate),
-      dataType,
-    }));
-  }
-
-  /**
-   * Extract value from HealthKit sample based on data type
-   */
-  private extractValue(sample: any, dataType: string): number {
-    // HealthKit returns different value formats depending on the data type
-    if (sample.value !== undefined) {
-      return parseFloat(sample.value);
-    }
-
-    if (sample.quantity !== undefined) {
-      return parseFloat(sample.quantity);
-    }
-
-    // Handle unit conversion if needed
-    switch (dataType) {
-      case 'heartRate':
-        return parseFloat(sample.value || sample.quantity || 0); // count/min
-      case 'systolic':
-      case 'diastolic':
-        return parseFloat(sample.value || sample.quantity || 0); // mmHg
-      case 'glucose':
-        return parseFloat(sample.value || sample.quantity || 0); // mg/dL
-      case 'temperature':
-        // Convert from Fahrenheit to Celsius if needed
-        const temp = parseFloat(sample.value || sample.quantity || 0);
-        return sample.unit === 'degF' ? (temp - 32) * 5/9 : temp;
-      case 'oxygenLevel':
-        // Convert to percentage if needed
-        const oxygen = parseFloat(sample.value || sample.quantity || 0);
-        return oxygen > 1 ? oxygen : oxygen * 100;
-      default:
-        return parseFloat(sample.value || sample.quantity || 0);
-    }
-  }
 
   /**
    * Start automatic sync of vitals data

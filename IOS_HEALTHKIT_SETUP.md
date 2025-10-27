@@ -21,14 +21,22 @@ npx cap add ios
 
 ## 2. Install HealthKit Plugin
 
-You'll need to install a Capacitor HealthKit plugin. We recommend `@capacitor-community/health`:
+Install the `capacitor-health` plugin which supports both iOS HealthKit and Android Health Connect:
 
 ```bash
-npm install @capacitor-community/health
+npm install capacitor-health
 npx cap sync
 ```
 
-Alternatively, you can use other plugins like `capacitor-healthkit` or create a custom plugin.
+**Note:** The current `capacitor-health` plugin has limited support for medical vitals. It currently supports:
+- Heart rate data (via workout queries)
+- Steps, calories, distance
+- Workout data
+
+For full support of blood pressure, glucose, temperature, oxygen saturation, and respiratory rate, you may need to:
+- Create a custom Capacitor plugin
+- Use a different library
+- Contribute to the capacitor-health plugin to add these data types
 
 ## 3. Configure Info.plist
 
@@ -222,7 +230,7 @@ Before deploying to App Store:
 
 - [Apple HealthKit Documentation](https://developer.apple.com/documentation/healthkit)
 - [Capacitor iOS Documentation](https://capacitorjs.com/docs/ios)
-- [@capacitor-community/health Plugin](https://github.com/capacitor-community/health)
+- [capacitor-health Plugin](https://www.npmjs.com/package/capacitor-health)
 - [HIPAA Compliance Guide](https://www.hhs.gov/hipaa/for-professionals/security/guidance/index.html)
 
 ## Support
