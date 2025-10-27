@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { AssignmentReason, CareTeamRole } from "../contexts/AuthTypes";
+import type { AssignmentReason, CareTeamRole } from "../contexts/AuthTypes";
 import { useAssignCareTeamMember, useEscalateToDoctor } from "../hooks/useCloudFunctions";
 
 interface CareTeamAssignmentCardProps {
