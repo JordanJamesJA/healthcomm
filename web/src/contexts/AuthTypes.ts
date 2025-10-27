@@ -7,6 +7,12 @@ export type DeviceType = "smartwatch" | "fitness_tracker" | "blood_pressure_moni
 
 export type DeviceStatus = "online" | "offline" | "syncing" | "error";
 
+export type DoctorAvailability = "available" | "busy" | "offline";
+
+export type CaretakerAvailability = "available" | "busy" | "offline";
+
+export type CareTeamRole = "doctor" | "caretaker";
+
 export interface Device {
   id: string;
   name: string;
@@ -76,6 +82,77 @@ export interface Patient {
   status: "stable" | "warning" | "critical";
   assignedDoctorId?: string;
   assignedCaretakerId?: string;
+  assignmentReason?: AssignmentReason;
+  assignedAt?: Timestamp | Date;
+  chronicConditions?: string[];
+}
+
+export interface DoctorProfile {
+  uid: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  specialization: string;
+  yearsInPractice: number;
+  hospitalAffiliation?: string;
+  licenseId?: string;
+  availability: DoctorAvailability;
+  maxPatients: number;
+  currentPatientCount: number;
+}
+
+export interface CaretakerProfile {
+  uid: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  relationshipToPatient?: string;
+  experienceYears: number;
+  certified: boolean;
+  availability: CaretakerAvailability;
+  maxPatients: number;
+  currentPatientCount: number;
+}
+
+export interface AssignmentReason {
+  score: number;
+  role: CareTeamRole;
+  factors: {
+    specializationMatch?: boolean;
+    matchedConditions?: string[];
+    experienceMatch?: boolean;
+    certificationBonus?: number;
+    availabilityBonus: number;
+    workloadScore: number;
+    experienceScore: number;
+  };
+  assignedBy: "system" | "manual" | "invitation" | "escalation";
+  timestamp: Timestamp | Date;
+  escalatedFrom?: string; // If escalated from caretaker to doctor
+}
+
+export interface AssignmentRequest {
+  patientId: string;
+  careTeamRole: CareTeamRole; // "doctor" or "caretaker"
+  preferredSpecialization?: string;
+  urgency?: "routine" | "urgent" | "emergency";
+  autoEscalate?: boolean; // Whether to auto-escalate to doctor if needed
+}
+
+export interface AssignmentResponse {
+  success: boolean;
+  assignedId?: string;
+  assignedName?: string;
+  role?: CareTeamRole;
+  reason?: AssignmentReason;
+  message?: string;
+}
+
+export interface EscalationCriteria {
+  criticalAlerts: number; // Number of critical alerts that trigger escalation
+  consecutiveWarnings: number; // Consecutive warning status days
+  chronicConditionSeverity: string[]; // Conditions that require doctor oversight
+  patientStatus: "stable" | "warning" | "critical";
 }
 
 export interface DeviceContextValue {
