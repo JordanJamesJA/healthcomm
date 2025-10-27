@@ -8,7 +8,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { FaUserMd, FaPlug } from "react-icons/fa";
+import { FaPlug } from "react-icons/fa";
 import AlertBox from "../components/AlertBox";
 import InfoCard from "../components/InfoCard";
 import VitalStat from "../components/VitalStat";
