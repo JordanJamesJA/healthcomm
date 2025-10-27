@@ -17,7 +17,7 @@ import VitalChart from "../components/VitalChart";
 import DeviceManagement from "../components/DeviceManagement";
 import DeviceOfflineAlert from "../components/DeviceOfflineAlert";
 import DeviceSwitcher from "../components/DeviceSwitcher";
-import DoctorAssignmentCard from "../components/DoctorAssignmentCard";
+import CareTeamAssignmentCard from "../components/CareTeamAssignmentCard";
 import { useDevice } from "../hooks/useDevice";
 import type { AppUser, VitalData, Alert } from "../contexts/AuthTypes";
 
@@ -161,7 +161,7 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
           />
         ))}
 
-      {/* Patient Info and Doctor Assignment Grid */}
+      {/* Patient Info and Care Team Assignment Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         <InfoCard title="Patient Information">
           <ul className="text-sm space-y-2">
@@ -184,9 +184,10 @@ export default function PatientDashboard({ user }: PatientDashboardProps) {
         </InfoCard>
 
         <div className="md:col-span-2">
-          <DoctorAssignmentCard
+          <CareTeamAssignmentCard
             patientId={user.uid}
             assignedDoctorId={user.assignedDoctorId}
+            assignedCaretakerId={(user as any).assignedCaretakerId}
             assignmentReason={(user as any).assignmentReason}
             onAssignmentComplete={() => {
               // Refresh page to get updated user data

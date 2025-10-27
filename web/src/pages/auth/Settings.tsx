@@ -12,7 +12,7 @@ import DeviceManagement from "../../components/DeviceManagement";
 import { useDarkMode } from "../../contexts/useDarkMode";
 import { FaSave, FaUserCog, FaBell, FaMoon, FaLaptopMedical, FaUserMd, FaUsers, FaChartLine } from "react-icons/fa";
 import type { AppUser } from "../../contexts/AuthTypes";
-import { useUpdateDoctorAvailability } from "../../hooks/useCloudFunctions";
+import { useUpdateAvailability } from "../../hooks/useCloudFunctions";
 
 export default function Settings() {
   const { user, loading } = useAuth();
@@ -736,9 +736,106 @@ function PatientRoleSettings({ user }: { user: AppUser }): JSX.Element {
 
 // Caretaker-specific role settings
 function CaretakerRoleSettings(): JSX.Element {
+  const { user } = useAuth();
+  const { updateAvailability, loading } = useUpdateAvailability();
+  const [currentAvailability, setCurrentAvailability] = useState<"available" | "busy" | "offline">(
+    (user as any)?.availability || "available"
+  );
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleAvailabilityChange = async (newAvailability: "available" | "busy" | "offline") => {
+    try {
+      await updateAvailability({ availability: newAvailability });
+      setCurrentAvailability(newAvailability);
+      setMessage({ type: "success", text: "Availability updated successfully" });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      setMessage({ type: "error", text: "Failed to update availability" });
+      console.error("Error updating availability:", error);
+    }
+  };
+
   return (
     <div>
-      <h3 className="text-2xl font-semibold mb-6 dark:text-white">Patient Management</h3>
+      <h3 className="text-2xl font-semibold mb-6 dark:text-white">Caretaker Dashboard</h3>
+
+      {/* Availability Status */}
+      <div className="mb-8">
+        <h4 className="text-lg font-semibold mb-4 dark:text-white">Availability Status</h4>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Update your availability status to help the system assign patients appropriately.
+          Available caretakers are prioritized in the smart assignment algorithm.
+        </p>
+
+        {message && (
+          <div className={`mb-4 p-3 rounded-lg ${message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+            {message.text}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button
+            onClick={() => handleAvailabilityChange("available")}
+            disabled={loading || currentAvailability === "available"}
+            className={`p-4 rounded-lg border-2 transition-all ${
+              currentAvailability === "available"
+                ? "bg-green-600 text-white border-green-600"
+                : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 hover:border-green-600"
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span className="text-2xl">●</span>
+              <span className="font-semibold">Available</span>
+            </div>
+            <p className="text-xs opacity-80">
+              Ready to accept new patients
+            </p>
+          </button>
+
+          <button
+            onClick={() => handleAvailabilityChange("busy")}
+            disabled={loading || currentAvailability === "busy"}
+            className={`p-4 rounded-lg border-2 transition-all ${
+              currentAvailability === "busy"
+                ? "bg-yellow-600 text-white border-yellow-600"
+                : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 hover:border-yellow-600"
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span className="text-2xl">◐</span>
+              <span className="font-semibold">Busy</span>
+            </div>
+            <p className="text-xs opacity-80">
+              Limited availability
+            </p>
+          </button>
+
+          <button
+            onClick={() => handleAvailabilityChange("offline")}
+            disabled={loading || currentAvailability === "offline"}
+            className={`p-4 rounded-lg border-2 transition-all ${
+              currentAvailability === "offline"
+                ? "bg-red-600 text-white border-red-600"
+                : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 hover:border-red-600"
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span className="text-2xl">○</span>
+              <span className="font-semibold">Offline</span>
+            </div>
+            <p className="text-xs opacity-80">
+              Not accepting new patients
+            </p>
+          </button>
+        </div>
+
+        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            <strong>How it works:</strong> The smart assignment system prioritizes available caretakers when matching patients.
+            Your experience level and certification status are also considered.
+          </p>
+        </div>
+      </div>
 
       {/* Assigned Patients */}
       <div className="mb-8">
@@ -776,7 +873,7 @@ function CaretakerRoleSettings(): JSX.Element {
 // Medical professional-specific role settings
 function MedicalRoleSettings(): JSX.Element {
   const { user } = useAuth();
-  const { updateAvailability, loading } = useUpdateDoctorAvailability();
+  const { updateAvailability, loading } = useUpdateAvailability();
   const [currentAvailability, setCurrentAvailability] = useState<"available" | "busy" | "offline">(
     (user as any)?.availability || "available"
   );
