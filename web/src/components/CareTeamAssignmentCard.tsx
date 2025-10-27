@@ -7,8 +7,11 @@
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { AssignmentReason, CareTeamRole } from "../contexts/AuthTypes";
-import { useAssignCareTeamMember, useEscalateToDoctor } from "../hooks/useCloudFunctions";
+import type { AssignmentReason, CareTeamRole } from "../contexts/AuthTypes";
+import {
+  useAssignCareTeamMember,
+  useEscalateToDoctor,
+} from "../hooks/useCloudFunctions";
 
 interface CareTeamAssignmentCardProps {
   patientId: string;
@@ -43,7 +46,9 @@ export default function CareTeamAssignmentCard({
   } | null>(null);
 
   const [showReasoning, setShowReasoning] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<CareTeamRole | "both">("doctor");
+  const [selectedRole, setSelectedRole] = useState<CareTeamRole | "both">(
+    "doctor"
+  );
   const [autoEscalate, setAutoEscalate] = useState(false);
   const { assignMember, loading } = useAssignCareTeamMember();
   const { escalate, loading: escalating } = useEscalateToDoctor();
@@ -167,7 +172,8 @@ export default function CareTeamAssignmentCard({
         </div>
 
         <p className="text-gray-600 mb-4">
-          No care team members assigned yet. Choose who you'd like to be matched with based on your needs.
+          No care team members assigned yet. Choose who you'd like to be matched
+          with based on your needs.
         </p>
 
         {/* Role Selection */}
@@ -239,7 +245,15 @@ export default function CareTeamAssignmentCard({
           disabled={loading}
           className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          {loading ? "Assigning..." : `Find Available ${selectedRole === "both" ? "Care Team" : selectedRole === "doctor" ? "Doctor" : "Caretaker"}`}
+          {loading
+            ? "Assigning..."
+            : `Find Available ${
+                selectedRole === "both"
+                  ? "Care Team"
+                  : selectedRole === "doctor"
+                  ? "Doctor"
+                  : "Caretaker"
+              }`}
         </button>
       </div>
     );
@@ -259,20 +273,31 @@ export default function CareTeamAssignmentCard({
         <div className="border-l-4 border-blue-500 pl-4 mb-4">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <div className="text-xs text-gray-500 uppercase font-semibold">Doctor</div>
+              <div className="text-xs text-gray-500 uppercase font-semibold">
+                Doctor
+              </div>
               <h4 className="text-xl font-semibold text-gray-900">
                 Dr. {doctorData.firstName} {doctorData.lastName}
               </h4>
             </div>
             {doctorData.availability && (
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getAvailabilityColor(doctorData.availability)}`}>
-                {getAvailabilityIcon(doctorData.availability)} {doctorData.availability}
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-medium ${getAvailabilityColor(
+                  doctorData.availability
+                )}`}
+              >
+                {getAvailabilityIcon(doctorData.availability)}{" "}
+                {doctorData.availability}
               </span>
             )}
           </div>
-          <p className="text-gray-600 font-medium">{doctorData.specialization}</p>
+          <p className="text-gray-600 font-medium">
+            {doctorData.specialization}
+          </p>
           {doctorData.hospitalAffiliation && (
-            <p className="text-sm text-gray-500">{doctorData.hospitalAffiliation}</p>
+            <p className="text-sm text-gray-500">
+              {doctorData.hospitalAffiliation}
+            </p>
           )}
           <p className="text-sm text-gray-500 mt-1">
             {doctorData.yearsInPractice} years of experience
@@ -285,7 +310,9 @@ export default function CareTeamAssignmentCard({
         <div className="border-l-4 border-green-500 pl-4 mb-4">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <div className="text-xs text-gray-500 uppercase font-semibold">Caretaker</div>
+              <div className="text-xs text-gray-500 uppercase font-semibold">
+                Caretaker
+              </div>
               <h4 className="text-xl font-semibold text-gray-900">
                 {caretakerData.firstName} {caretakerData.lastName}
                 {caretakerData.certified && (
@@ -296,8 +323,13 @@ export default function CareTeamAssignmentCard({
               </h4>
             </div>
             {caretakerData.availability && (
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getAvailabilityColor(caretakerData.availability)}`}>
-                {getAvailabilityIcon(caretakerData.availability)} {caretakerData.availability}
+              <span
+                className={`px-3 py-1 rounded-full text-sm font-medium ${getAvailabilityColor(
+                  caretakerData.availability
+                )}`}
+              >
+                {getAvailabilityIcon(caretakerData.availability)}{" "}
+                {caretakerData.availability}
               </span>
             )}
           </div>
@@ -314,14 +346,23 @@ export default function CareTeamAssignmentCard({
             onClick={() => setShowReasoning(!showReasoning)}
             className="flex items-center justify-between w-full text-left text-gray-700 hover:text-gray-900"
           >
-            <span className="font-medium">Why was this {assignmentReason.role} selected?</span>
+            <span className="font-medium">
+              Why was this {assignmentReason.role} selected?
+            </span>
             <svg
-              className={`w-5 h-5 transition-transform ${showReasoning ? "rotate-180" : ""}`}
+              className={`w-5 h-5 transition-transform ${
+                showReasoning ? "rotate-180" : ""
+              }`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
 
@@ -329,53 +370,75 @@ export default function CareTeamAssignmentCard({
           {showReasoning && (
             <div className="mt-4 space-y-3 bg-gray-50 rounded-lg p-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">Overall Match Score</span>
+                <span className="text-sm font-medium text-gray-700">
+                  Overall Match Score
+                </span>
                 <span className="text-lg font-bold text-blue-600">
-                  {assignmentReason.score}/{assignmentReason.role === "doctor" ? "225" : "155"}
+                  {assignmentReason.score}/
+                  {assignmentReason.role === "doctor" ? "225" : "155"}
                 </span>
               </div>
 
               <div className="border-t pt-3 space-y-2">
-                <h5 className="text-sm font-semibold text-gray-700">Scoring Breakdown:</h5>
+                <h5 className="text-sm font-semibold text-gray-700">
+                  Scoring Breakdown:
+                </h5>
 
                 {/* Doctor-specific factors */}
-                {assignmentReason.role === "doctor" && assignmentReason.factors.specializationMatch && (
-                  <div className="flex items-start space-x-2">
-                    <span className="text-lg">✓</span>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-700">
-                        <strong>Specialization Match</strong>
-                        {assignmentReason.factors.matchedConditions && assignmentReason.factors.matchedConditions.length > 0 && (
-                          <span className="ml-2 text-green-600">
-                            ({assignmentReason.factors.matchedConditions.join(", ")})
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        +{(assignmentReason.factors.matchedConditions?.length || 0) * 100} points
-                      </p>
+                {assignmentReason.role === "doctor" &&
+                  assignmentReason.factors.specializationMatch && (
+                    <div className="flex items-start space-x-2">
+                      <span className="text-lg">✓</span>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-700">
+                          <strong>Specialization Match</strong>
+                          {assignmentReason.factors.matchedConditions &&
+                            assignmentReason.factors.matchedConditions.length >
+                              0 && (
+                              <span className="ml-2 text-green-600">
+                                (
+                                {assignmentReason.factors.matchedConditions.join(
+                                  ", "
+                                )}
+                                )
+                              </span>
+                            )}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          +
+                          {(assignmentReason.factors.matchedConditions
+                            ?.length || 0) * 100}{" "}
+                          points
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Caretaker-specific factors */}
-                {assignmentReason.role === "caretaker" && assignmentReason.factors.certificationBonus !== undefined && (
-                  <div className="flex items-start space-x-2">
-                    <span className="text-lg">{assignmentReason.factors.certificationBonus > 0 ? "✓" : "○"}</span>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-700">
-                        <strong>Certified Professional</strong>
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        +{assignmentReason.factors.certificationBonus} points
-                      </p>
+                {assignmentReason.role === "caretaker" &&
+                  assignmentReason.factors.certificationBonus !== undefined && (
+                    <div className="flex items-start space-x-2">
+                      <span className="text-lg">
+                        {assignmentReason.factors.certificationBonus > 0
+                          ? "✓"
+                          : "○"}
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-700">
+                          <strong>Certified Professional</strong>
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          +{assignmentReason.factors.certificationBonus} points
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Availability */}
                 <div className="flex items-start space-x-2">
-                  <span className="text-lg">{assignmentReason.factors.availabilityBonus > 0 ? "✓" : "○"}</span>
+                  <span className="text-lg">
+                    {assignmentReason.factors.availabilityBonus > 0 ? "✓" : "○"}
+                  </span>
                   <div className="flex-1">
                     <p className="text-sm text-gray-700">
                       <strong>Available Status</strong>
