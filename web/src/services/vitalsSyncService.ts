@@ -13,7 +13,6 @@ import type { VitalsReading, SyncConfig, SyncStatus } from './types';
 class VitalsSyncService {
   private config?: SyncConfig;
   private syncInterval?: NodeJS.Timeout;
-  private isInitialized = false;
   private lastSyncTime?: Date;
 
   /**
@@ -32,7 +31,6 @@ class VitalsSyncService {
     // Set up data callbacks
     this.setupDataCallbacks();
 
-    this.isInitialized = true;
     console.log('Vitals sync service initialized');
   }
 
@@ -350,9 +348,7 @@ class VitalsSyncService {
     if (!this.config?.userId) return;
 
     try {
-      const userRef = doc(db, 'users', this.config.userId);
-
-      // This will be handled by the DeviceContext, but we can also update here
+      // This will be handled by the DeviceContext
       console.log(`Device ${deviceId} status: ${status}`);
     } catch (error) {
       console.error('Error updating device status:', error);

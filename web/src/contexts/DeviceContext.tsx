@@ -5,7 +5,6 @@ import { db } from '../services/firebase';
 import { useAuth } from '../hooks/useAuth';
 import type { Device, DeviceContextValue, DeviceStatus } from './AuthTypes';
 import { vitalsSyncService } from '../services/vitalsSyncService';
-import { bluetoothService } from '../services/bluetoothService';
 
 const DeviceContext = createContext<DeviceContextValue | undefined>(undefined);
 

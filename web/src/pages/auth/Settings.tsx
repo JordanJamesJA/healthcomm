@@ -891,18 +891,19 @@ function MedicalRoleSettings(): JSX.Element {
     }
   };
 
-  const getAvailabilityStyles = (status: string) => {
-    switch (status) {
-      case "available":
-        return "bg-green-600 hover:bg-green-700 border-green-600";
-      case "busy":
-        return "bg-yellow-600 hover:bg-yellow-700 border-yellow-600";
-      case "offline":
-        return "bg-red-600 hover:bg-red-700 border-red-600";
-      default:
-        return "bg-gray-300 hover:bg-gray-400 border-gray-300";
-    }
-  };
+  // Helper function for availability styles
+  // const getAvailabilityStyles = (status: string) => {
+  //   switch (status) {
+  //     case "available":
+  //       return "bg-green-600 hover:bg-green-700 border-green-600";
+  //     case "busy":
+  //       return "bg-yellow-600 hover:bg-yellow-700 border-yellow-600";
+  //     case "offline":
+  //       return "bg-red-600 hover:bg-red-700 border-red-600";
+  //     default:
+  //       return "bg-gray-300 hover:bg-gray-400 border-gray-300";
+  //   }
+  // };
 
   return (
     <div>

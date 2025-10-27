@@ -212,7 +212,7 @@ class BluetoothService {
       const value = target.value;
       if (value) {
         // Glucose concentration is in mg/dL (or mmol/L depending on flags)
-        const flags = value.getUint8(0);
+        // const flags = value.getUint8(0); // Flags not currently used
         const glucose = value.getUint16(3, true);
 
         this.emitReading({
