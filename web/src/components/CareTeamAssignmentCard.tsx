@@ -107,9 +107,10 @@ export default function CareTeamAssignmentCard({
       }
       alert("Care team member(s) assigned successfully!");
       onAssignmentComplete?.();
-    } catch (error) {
-      alert("Failed to assign care team member. Please try again.");
+    } catch (error: any) {
       console.error("Error assigning care team:", error);
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      alert(`Failed to assign care team member.\n\nError: ${errorMessage}\n\nPlease check the console for details.`);
     }
   };
 
@@ -120,9 +121,10 @@ export default function CareTeamAssignmentCard({
       const result = await escalate({ patientId });
       alert(result.message || "Successfully escalated to doctor!");
       onAssignmentComplete?.();
-    } catch (error) {
-      alert("Failed to escalate. Please try again.");
+    } catch (error: any) {
       console.error("Error escalating:", error);
+      const errorMessage = error?.message || error?.toString() || "Unknown error";
+      alert(`Failed to escalate.\n\nError: ${errorMessage}\n\nPlease check the console for details.`);
     }
   };
 
