@@ -259,6 +259,76 @@ export const onAlertCreated = onDocumentCreated(
         });
       }
 
+      // AUTO-ESCALATION LOGIC
+      // If patient has caretaker but no doctor, and autoEscalateToDoctor is enabled
+      // Escalate to doctor on critical alerts or multiple high-severity alerts
+      if (userData.assignedCaretakerId && !userData.assignedDoctorId && userData.autoEscalateToDoctor) {
+        let shouldEscalate = false;
+        let escalationReason = "";
+
+        // Escalate on critical status
+        if (alertData.severity === "high") {
+          // Count recent high-severity alerts (last 24 hours)
+          const twentyFourHoursAgo = admin.firestore.Timestamp.fromDate(
+            new Date(Date.now() - 24 * 60 * 60 * 1000)
+          );
+
+          const recentHighAlerts = await admin
+            .firestore()
+            .collection(`patients/${patientId}/alerts`)
+            .where("severity", "==", "high")
+            .where("timestamp", ">=", twentyFourHoursAgo)
+            .get();
+
+          if (recentHighAlerts.size >= 2) {
+            shouldEscalate = true;
+            escalationReason = `Multiple high-severity alerts (${recentHighAlerts.size} in 24 hours)`;
+          }
+        }
+
+        if (shouldEscalate) {
+          logger.info(`Auto-escalating patient ${patientId} to doctor due to: ${escalationReason}`);
+
+          // Find available doctor using simplified logic
+          const doctorsSnapshot = await admin
+            .firestore()
+            .collection("users")
+            .where("role", "==", "medical")
+            .where("availability", "==", "available")
+            .limit(1)
+            .get();
+
+          if (!doctorsSnapshot.empty) {
+            const doctorDoc = doctorsSnapshot.docs[0];
+            const doctorData = doctorDoc.data();
+
+            await admin.firestore().doc(`users/${patientId}`).update({
+              assignedDoctorId: doctorDoc.id,
+              assignedDoctor: `${doctorData.firstName} ${doctorData.lastName}`,
+              escalatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              escalatedFrom: userData.assignedCaretakerId,
+              escalationReason: escalationReason,
+            });
+
+            // Notify all parties
+            await admin.firestore().collection("notifications").add({
+              userId: doctorDoc.id,
+              type: "alert",
+              severity: "high",
+              title: "URGENT: Patient Auto-Escalated",
+              message: `${userData.firstName} ${userData.lastName} has been auto-escalated due to: ${escalationReason}`,
+              patientId: patientId,
+              patientName: `${userData.firstName} ${userData.lastName}`,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              read: false,
+              sent: false,
+            });
+
+            logger.info(`Auto-escalated patient ${patientId} to doctor ${doctorDoc.id}`);
+          }
+        }
+      }
+
       return { success: true };
     } catch (error) {
       logger.error("Error in onAlertCreated:", error);
@@ -447,13 +517,14 @@ export const respondToInvitation = onCall(
 );
 
 /**
- * Callable function to intelligently assign a patient to the best available doctor
- * Uses smart algorithm based on specialization match, availability, and workload
+ * Callable function to intelligently assign a patient to the best available care team member
+ * Supports both doctors and caretakers with smart matching algorithms
+ * Can automatically escalate from caretaker to doctor based on patient condition
  */
-export const assignPatientToDoctor = onCall(
+export const assignCareTeamMember = onCall(
   { cors: true },
   async (request) => {
-    const { patientId, preferredSpecialization, urgency } = request.data;
+    const { patientId, careTeamRole, preferredSpecialization, urgency, autoEscalate } = request.data;
     const userId = request.auth?.uid;
 
     if (!userId) {
@@ -464,7 +535,11 @@ export const assignPatientToDoctor = onCall(
       throw new HttpsError("invalid-argument", "patientId is required");
     }
 
-    logger.info(`Assigning doctor for patient ${patientId}`, { preferredSpecialization, urgency });
+    if (!careTeamRole || !["doctor", "caretaker"].includes(careTeamRole)) {
+      throw new HttpsError("invalid-argument", "careTeamRole must be 'doctor' or 'caretaker'");
+    }
+
+    logger.info(`Assigning ${careTeamRole} for patient ${patientId}`, { preferredSpecialization, urgency, autoEscalate });
 
     try {
       // Verify user has permission (patient themselves, admin, or existing caretaker)
@@ -484,166 +559,215 @@ export const assignPatientToDoctor = onCall(
         throw new HttpsError("permission-denied", "You do not have permission to assign a doctor for this patient");
       }
 
-      // Get patient's chronic conditions for specialization matching
+      // Get patient's chronic conditions and status for matching
       const patientConditions = patientData.chronicConditions || [];
+      const patientStatus = patientData.status || "stable";
 
-      // Get all doctors from users collection
-      const doctorsSnapshot = await admin
+      // Get all care team members based on role
+      const role = careTeamRole === "doctor" ? "medical" : "caretaker";
+      const membersSnapshot = await admin
         .firestore()
         .collection("users")
-        .where("role", "==", "medical")
+        .where("role", "==", role)
         .get();
 
-      if (doctorsSnapshot.empty) {
-        throw new HttpsError("not-found", "No doctors available in the system");
+      if (membersSnapshot.empty) {
+        throw new HttpsError("not-found", `No ${careTeamRole}s available in the system`);
       }
 
-      // Score each doctor
-      interface ScoredDoctor {
+      // Score each care team member
+      interface ScoredMember {
         uid: string;
         firstName: string;
         lastName: string;
-        specialization: string;
+        specialization?: string;
+        certified?: boolean;
         score: number;
         matchedConditions: string[];
         availability: string;
         currentPatientCount: number;
-        yearsInPractice: number;
+        experience: number;
       }
 
-      const scoredDoctors: ScoredDoctor[] = [];
+      const scoredMembers: ScoredMember[] = [];
 
-      for (const doctorDoc of doctorsSnapshot.docs) {
-        const doctorData = doctorDoc.data();
-        const doctorId = doctorDoc.id;
+      for (const memberDoc of membersSnapshot.docs) {
+        const memberData = memberDoc.data();
+        const memberId = memberDoc.id;
 
         // Initialize score
         let score = 0;
         const matchedConditions: string[] = [];
 
-        // 1. SPECIALIZATION MATCH (100 points per match)
-        const doctorSpec = (doctorData.specialization || "").toLowerCase();
+        // ROLE-SPECIFIC SCORING
+        if (careTeamRole === "doctor") {
+          // DOCTOR-SPECIFIC SCORING
 
-        // Common specialization-condition mappings
-        const specializationMatches: Record<string, string[]> = {
-          cardiology: ["heart disease", "hypertension", "high blood pressure", "cardiovascular"],
-          endocrinology: ["diabetes", "thyroid", "metabolic"],
-          pulmonology: ["asthma", "copd", "respiratory", "lung"],
-          nephrology: ["kidney", "renal"],
-          neurology: ["epilepsy", "seizure", "migraine", "neurological"],
-          gastroenterology: ["crohn", "ibd", "digestive", "gastric"],
-          rheumatology: ["arthritis", "lupus", "autoimmune"],
-          oncology: ["cancer", "tumor"],
-          psychiatry: ["depression", "anxiety", "mental health"],
-          "family medicine": [], // Matches all - general practitioner
-          "internal medicine": [], // Matches all - general practitioner
-        };
+          // 1. SPECIALIZATION MATCH (100 points per match)
+          const doctorSpec = (memberData.specialization || "").toLowerCase();
 
-        // Check if doctor's specialization matches patient conditions
-        if (patientConditions.length > 0) {
-          for (const condition of patientConditions) {
-            const conditionLower = condition.toLowerCase();
+          // Common specialization-condition mappings
+          const specializationMatches: Record<string, string[]> = {
+            cardiology: ["heart disease", "hypertension", "high blood pressure", "cardiovascular"],
+            endocrinology: ["diabetes", "thyroid", "metabolic"],
+            pulmonology: ["asthma", "copd", "respiratory", "lung"],
+            nephrology: ["kidney", "renal"],
+            neurology: ["epilepsy", "seizure", "migraine", "neurological"],
+            gastroenterology: ["crohn", "ibd", "digestive", "gastric"],
+            rheumatology: ["arthritis", "lupus", "autoimmune"],
+            oncology: ["cancer", "tumor"],
+            psychiatry: ["depression", "anxiety", "mental health"],
+            "family medicine": [], // Matches all - general practitioner
+            "internal medicine": [], // Matches all - general practitioner
+          };
 
-            // Check direct match or mapping
-            for (const [spec, keywords] of Object.entries(specializationMatches)) {
-              if (doctorSpec.includes(spec)) {
-                if (keywords.length === 0 || keywords.some(kw => conditionLower.includes(kw))) {
-                  score += 100;
-                  matchedConditions.push(condition);
-                  break;
+          // Check if doctor's specialization matches patient conditions
+          if (patientConditions.length > 0) {
+            for (const condition of patientConditions) {
+              const conditionLower = condition.toLowerCase();
+
+              // Check direct match or mapping
+              for (const [spec, keywords] of Object.entries(specializationMatches)) {
+                if (doctorSpec.includes(spec)) {
+                  if (keywords.length === 0 || keywords.some(kw => conditionLower.includes(kw))) {
+                    score += 100;
+                    matchedConditions.push(condition);
+                    break;
+                  }
                 }
               }
             }
           }
+
+          // Preferred specialization bonus
+          if (preferredSpecialization && doctorSpec.includes(preferredSpecialization.toLowerCase())) {
+            score += 100;
+          }
+        } else {
+          // CARETAKER-SPECIFIC SCORING
+
+          // 1. CERTIFICATION BONUS (50 points for certified)
+          const isCertified = memberData.certified || false;
+          if (isCertified) {
+            score += 50;
+          }
+
+          // 2. EXPERIENCE MATCH - bonus for caretakers with medical condition experience
+          const experienceYears = parseInt(memberData.experienceYears || "0");
+          if (experienceYears >= 5) {
+            score += 30; // Experienced caretaker bonus
+          } else if (experienceYears >= 2) {
+            score += 15; // Moderate experience
+          }
         }
 
-        // Preferred specialization bonus
-        if (preferredSpecialization && doctorSpec.includes(preferredSpecialization.toLowerCase())) {
-          score += 100;
-        }
+        // SHARED SCORING FACTORS (both doctors and caretakers)
 
-        // 2. AVAILABILITY STATUS (50 points for available)
-        const availability = doctorData.availability || "available"; // Default to available
+        // AVAILABILITY STATUS (50 points for available)
+        const availability = memberData.availability || "available"; // Default to available
         if (availability === "available") {
           score += 50;
         } else if (availability === "busy" && urgency === "urgent") {
-          score += 25; // Still consider busy doctors for urgent cases
+          score += 25; // Still consider busy members for urgent cases
         }
-        // Offline doctors get 0 points unless emergency
+        // Offline members get 0 points unless emergency
 
-        // 3. WORKLOAD BALANCE (0-50 points, inversely proportional to patient count)
-        // Count current patients assigned to this doctor
+        // WORKLOAD BALANCE (0-50 points, inversely proportional to patient count)
+        const assignedField = careTeamRole === "doctor" ? "assignedDoctorId" : "assignedCaretakerId";
         const assignedPatientsSnapshot = await admin
           .firestore()
           .collection("users")
           .where("role", "==", "patient")
-          .where("assignedDoctorId", "==", doctorId)
+          .where(assignedField, "==", memberId)
           .get();
 
         const currentPatientCount = assignedPatientsSnapshot.size;
-        const maxPatients = doctorData.maxPatients || 50;
+        const maxPatients = memberData.maxPatients || 50;
 
         // Calculate workload score (higher score for fewer patients)
         const workloadRatio = currentPatientCount / maxPatients;
         const workloadScore = Math.max(0, 50 - (workloadRatio * 50));
         score += workloadScore;
 
-        // 4. EXPERIENCE BONUS (0-25 points based on years in practice)
-        const yearsInPractice = parseInt(doctorData.yearsInPractice || "0");
-        const experienceScore = Math.min(25, yearsInPractice * 1.25); // Cap at 25 points
+        // EXPERIENCE BONUS (0-25 points)
+        const experience = careTeamRole === "doctor"
+          ? parseInt(memberData.yearsInPractice || "0")
+          : parseInt(memberData.experienceYears || "0");
+        const experienceScore = Math.min(25, experience * 1.25); // Cap at 25 points
         score += experienceScore;
 
-        scoredDoctors.push({
-          uid: doctorId,
-          firstName: doctorData.firstName || "",
-          lastName: doctorData.lastName || "",
-          specialization: doctorData.specialization || "",
+        scoredMembers.push({
+          uid: memberId,
+          firstName: memberData.firstName || "",
+          lastName: memberData.lastName || "",
+          specialization: memberData.specialization,
+          certified: memberData.certified,
           score: score,
           matchedConditions: matchedConditions,
           availability: availability,
           currentPatientCount: currentPatientCount,
-          yearsInPractice: yearsInPractice,
+          experience: experience,
         });
       }
 
       // Sort by score descending
-      scoredDoctors.sort((a, b) => b.score - a.score);
+      scoredMembers.sort((a, b) => b.score - a.score);
 
-      if (scoredDoctors.length === 0 || scoredDoctors[0].score === 0) {
-        throw new HttpsError("unavailable", "No suitable doctors available at this time");
+      if (scoredMembers.length === 0 || scoredMembers[0].score === 0) {
+        throw new HttpsError("unavailable", `No suitable ${careTeamRole}s available at this time`);
       }
 
-      // Select the top doctor
-      const selectedDoctor = scoredDoctors[0];
+      // Select the top member
+      const selectedMember = scoredMembers[0];
 
       // Create assignment reason object
       const assignmentReason = {
-        score: selectedDoctor.score,
+        score: selectedMember.score,
+        role: careTeamRole,
         factors: {
-          specializationMatch: selectedDoctor.matchedConditions.length > 0,
-          matchedConditions: selectedDoctor.matchedConditions,
-          availabilityBonus: selectedDoctor.availability === "available" ? 50 : 0,
-          workloadScore: Math.round(50 - (selectedDoctor.currentPatientCount / 50 * 50)),
-          experienceScore: Math.round(Math.min(25, selectedDoctor.yearsInPractice * 1.25)),
+          ...(careTeamRole === "doctor" && {
+            specializationMatch: selectedMember.matchedConditions.length > 0,
+            matchedConditions: selectedMember.matchedConditions,
+          }),
+          ...(careTeamRole === "caretaker" && {
+            certificationBonus: selectedMember.certified ? 50 : 0,
+          }),
+          availabilityBonus: selectedMember.availability === "available" ? 50 : 0,
+          workloadScore: Math.round(50 - (selectedMember.currentPatientCount / 50 * 50)),
+          experienceScore: Math.round(Math.min(25, selectedMember.experience * 1.25)),
         },
         assignedBy: "system",
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       };
 
-      // Update patient document with assigned doctor
-      await admin.firestore().doc(`users/${patientId}`).update({
-        assignedDoctorId: selectedDoctor.uid,
-        assignedDoctor: `${selectedDoctor.firstName} ${selectedDoctor.lastName}`,
+      // Update patient document with assigned care team member
+      const updateData: any = {
         assignmentReason: assignmentReason,
         assignedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      };
 
-      // Create notification for the assigned doctor
+      if (careTeamRole === "doctor") {
+        updateData.assignedDoctorId = selectedMember.uid;
+        updateData.assignedDoctor = `${selectedMember.firstName} ${selectedMember.lastName}`;
+      } else {
+        updateData.assignedCaretakerId = selectedMember.uid;
+        updateData.assignedCaretaker = `${selectedMember.firstName} ${selectedMember.lastName}`;
+      }
+
+      // Set auto-escalate flag if requested
+      if (autoEscalate && careTeamRole === "caretaker") {
+        updateData.autoEscalateToDoctor = true;
+      }
+
+      await admin.firestore().doc(`users/${patientId}`).update(updateData);
+
+      // Create notification for the assigned care team member
+      const memberTitle = careTeamRole === "doctor" ? "New Patient Assigned" : "New Patient Assigned";
       await admin.firestore().collection("notifications").add({
-        userId: selectedDoctor.uid,
+        userId: selectedMember.uid,
         type: "system",
         severity: "low",
-        title: "New Patient Assigned",
+        title: memberTitle,
         message: `${patientData.firstName} ${patientData.lastName} has been assigned to your care.`,
         patientId: patientId,
         patientName: `${patientData.firstName} ${patientData.lastName}`,
@@ -653,12 +777,16 @@ export const assignPatientToDoctor = onCall(
       });
 
       // Create notification for the patient
+      const patientMessage = careTeamRole === "doctor"
+        ? `Dr. ${selectedMember.firstName} ${selectedMember.lastName} (${selectedMember.specialization}) has been assigned as your doctor.`
+        : `${selectedMember.firstName} ${selectedMember.lastName} has been assigned as your caretaker.${selectedMember.certified ? " (Certified Professional)" : ""}`;
+
       await admin.firestore().collection("notifications").add({
         userId: patientId,
         type: "system",
         severity: "low",
-        title: "Doctor Assigned",
-        message: `Dr. ${selectedDoctor.firstName} ${selectedDoctor.lastName} (${selectedDoctor.specialization}) has been assigned as your doctor.`,
+        title: `${careTeamRole === "doctor" ? "Doctor" : "Caretaker"} Assigned`,
+        message: patientMessage,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         read: false,
         sent: false,
@@ -666,41 +794,46 @@ export const assignPatientToDoctor = onCall(
 
       // Create audit log
       await admin.firestore().collection("auditLogs").add({
-        action: "doctor_assigned",
+        action: `${careTeamRole}_assigned`,
         userId: userId,
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         details: {
           patientId: patientId,
-          doctorId: selectedDoctor.uid,
-          score: selectedDoctor.score,
-          matchedConditions: selectedDoctor.matchedConditions,
+          assignedId: selectedMember.uid,
+          role: careTeamRole,
+          score: selectedMember.score,
+          matchedConditions: selectedMember.matchedConditions,
           assignedBy: "system",
         },
       });
 
-      logger.info(`Successfully assigned doctor ${selectedDoctor.uid} to patient ${patientId} with score ${selectedDoctor.score}`);
+      logger.info(`Successfully assigned ${careTeamRole} ${selectedMember.uid} to patient ${patientId} with score ${selectedMember.score}`);
 
       return {
         success: true,
-        doctorId: selectedDoctor.uid,
-        doctorName: `${selectedDoctor.firstName} ${selectedDoctor.lastName}`,
+        assignedId: selectedMember.uid,
+        assignedName: `${selectedMember.firstName} ${selectedMember.lastName}`,
+        role: careTeamRole,
         reason: assignmentReason,
-        message: `Successfully assigned to Dr. ${selectedDoctor.firstName} ${selectedDoctor.lastName} (${selectedDoctor.specialization})`,
+        message: careTeamRole === "doctor"
+          ? `Successfully assigned to Dr. ${selectedMember.firstName} ${selectedMember.lastName} (${selectedMember.specialization})`
+          : `Successfully assigned to ${selectedMember.firstName} ${selectedMember.lastName} (Caretaker)`,
       };
     } catch (error) {
-      logger.error("Error in assignPatientToDoctor:", error);
+      logger.error("Error in assignCareTeamMember:", error);
       if (error instanceof HttpsError) {
         throw error;
       }
-      throw new HttpsError("internal", "Failed to assign doctor");
+      throw new HttpsError("internal", `Failed to assign ${careTeamRole}`);
     }
   }
 );
 
 /**
- * Callable function to update a doctor's availability status
+ * Callable function to update a care team member's availability status
+ * Works for both doctors and caretakers
  */
-export const updateDoctorAvailability = onCall(
+export const updateAvailability = onCall(
   { cors: true },
   async (request) => {
     const { availability } = request.data;
@@ -714,16 +847,16 @@ export const updateDoctorAvailability = onCall(
       throw new HttpsError("invalid-argument", "availability must be 'available', 'busy', or 'offline'");
     }
 
-    logger.info(`Updating availability for doctor ${userId} to ${availability}`);
-
     try {
-      // Verify user is a doctor
+      // Verify user is a medical professional or caretaker
       const userDoc = await admin.firestore().doc(`users/${userId}`).get();
       const userData = userDoc.data();
 
-      if (!userData || userData.role !== "medical") {
-        throw new HttpsError("permission-denied", "Only medical professionals can update availability");
+      if (!userData || !["medical", "caretaker"].includes(userData.role)) {
+        throw new HttpsError("permission-denied", "Only medical professionals and caretakers can update availability");
       }
+
+      logger.info(`Updating availability for ${userData.role} ${userId} to ${availability}`);
 
       // Update availability
       await admin.firestore().doc(`users/${userId}`).update({
@@ -737,19 +870,197 @@ export const updateDoctorAvailability = onCall(
         userId: userId,
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         details: {
+          role: userData.role,
           availability: availability,
         },
       });
 
-      logger.info(`Availability updated successfully for doctor ${userId}`);
+      logger.info(`Availability updated successfully for ${userData.role} ${userId}`);
 
       return { success: true, availability: availability };
     } catch (error) {
-      logger.error("Error in updateDoctorAvailability:", error);
+      logger.error("Error in updateAvailability:", error);
       if (error instanceof HttpsError) {
         throw error;
       }
       throw new HttpsError("internal", "Failed to update availability");
+    }
+  }
+);
+
+/**
+ * Callable function to manually escalate a patient from caretaker to doctor
+ */
+export const escalateToDoctor = onCall(
+  { cors: true },
+  async (request) => {
+    const { patientId, reason } = request.data;
+    const userId = request.auth?.uid;
+
+    if (!userId) {
+      throw new HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    if (!patientId) {
+      throw new HttpsError("invalid-argument", "patientId is required");
+    }
+
+    logger.info(`Escalating patient ${patientId} to doctor care`, { reason });
+
+    try {
+      // Verify user has permission (patient, caretaker, or existing doctor)
+      const patientDoc = await admin.firestore().doc(`users/${patientId}`).get();
+      const patientData = patientDoc.data();
+
+      if (!patientData) {
+        throw new HttpsError("not-found", "Patient not found");
+      }
+
+      const hasPermission =
+        userId === patientId ||
+        patientData.assignedCaretakerId === userId ||
+        patientData.assignedDoctorId === userId;
+
+      if (!hasPermission) {
+        throw new HttpsError("permission-denied", "You do not have permission to escalate this patient");
+      }
+
+      // Check if patient already has a doctor
+      if (patientData.assignedDoctorId) {
+        return {
+          success: true,
+          message: "Patient already has an assigned doctor",
+          doctorId: patientData.assignedDoctorId,
+        };
+      }
+
+      // Store the current caretaker ID for reference
+      const previousCaretakerId = patientData.assignedCaretakerId;
+
+      // Call assignCareTeamMember to find a doctor
+      // Note: We're making an internal function call here by reusing the logic
+      const doctorsSnapshot = await admin
+        .firestore()
+        .collection("users")
+        .where("role", "==", "medical")
+        .get();
+
+      if (doctorsSnapshot.empty) {
+        throw new HttpsError("not-found", "No doctors available for escalation");
+      }
+
+      // Use the same scoring logic from assignCareTeamMember
+      // For brevity in escalation, we'll find the first available doctor with matching specialization
+      const patientConditions = patientData.chronicConditions || [];
+      let bestDoctor: any = null;
+      let bestScore = 0;
+
+      for (const doctorDoc of doctorsSnapshot.docs) {
+        const doctorData = doctorDoc.data();
+        const availability = doctorData.availability || "available";
+
+        if (availability !== "offline") {
+          let score = availability === "available" ? 100 : 50;
+
+          // Check for specialization match
+          const doctorSpec = (doctorData.specialization || "").toLowerCase();
+          for (const condition of patientConditions) {
+            if (doctorSpec.includes(condition.toLowerCase()) ||
+                condition.toLowerCase().includes(doctorSpec)) {
+              score += 100;
+              break;
+            }
+          }
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestDoctor = { id: doctorDoc.id, data: doctorData };
+          }
+        }
+      }
+
+      if (!bestDoctor) {
+        throw new HttpsError("unavailable", "No available doctors for escalation");
+      }
+
+      // Update patient with doctor assignment
+      await admin.firestore().doc(`users/${patientId}`).update({
+        assignedDoctorId: bestDoctor.id,
+        assignedDoctor: `${bestDoctor.data.firstName} ${bestDoctor.data.lastName}`,
+        escalatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        escalatedFrom: previousCaretakerId,
+        escalationReason: reason || "auto-escalation",
+      });
+
+      // Notify doctor
+      await admin.firestore().collection("notifications").add({
+        userId: bestDoctor.id,
+        type: "alert",
+        severity: "medium",
+        title: "Patient Escalated to Your Care",
+        message: `${patientData.firstName} ${patientData.lastName} has been escalated from caretaker to doctor care.${reason ? ` Reason: ${reason}` : ""}`,
+        patientId: patientId,
+        patientName: `${patientData.firstName} ${patientData.lastName}`,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+        sent: false,
+      });
+
+      // Notify caretaker if exists
+      if (previousCaretakerId) {
+        await admin.firestore().collection("notifications").add({
+          userId: previousCaretakerId,
+          type: "system",
+          severity: "medium",
+          title: "Patient Escalated to Doctor",
+          message: `${patientData.firstName} ${patientData.lastName} has been escalated to doctor care. You will continue to receive updates.`,
+          patientId: patientId,
+          patientName: `${patientData.firstName} ${patientData.lastName}`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          read: false,
+          sent: false,
+        });
+      }
+
+      // Notify patient
+      await admin.firestore().collection("notifications").add({
+        userId: patientId,
+        type: "system",
+        severity: "low",
+        title: "Care Escalated to Doctor",
+        message: `Dr. ${bestDoctor.data.firstName} ${bestDoctor.data.lastName} has been assigned to oversee your care.`,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+        sent: false,
+      });
+
+      // Create audit log
+      await admin.firestore().collection("auditLogs").add({
+        action: "patient_escalated",
+        userId: userId,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        details: {
+          patientId: patientId,
+          doctorId: bestDoctor.id,
+          previousCaretakerId: previousCaretakerId,
+          reason: reason || "auto-escalation",
+        },
+      });
+
+      logger.info(`Successfully escalated patient ${patientId} to doctor ${bestDoctor.id}`);
+
+      return {
+        success: true,
+        doctorId: bestDoctor.id,
+        doctorName: `${bestDoctor.data.firstName} ${bestDoctor.data.lastName}`,
+        message: `Successfully escalated to Dr. ${bestDoctor.data.firstName} ${bestDoctor.data.lastName}`,
+      };
+    } catch (error) {
+      logger.error("Error in escalateToDoctor:", error);
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+      throw new HttpsError("internal", "Failed to escalate to doctor");
     }
   }
 );

@@ -9,6 +9,10 @@ export type DeviceStatus = "online" | "offline" | "syncing" | "error";
 
 export type DoctorAvailability = "available" | "busy" | "offline";
 
+export type CaretakerAvailability = "available" | "busy" | "offline";
+
+export type CareTeamRole = "doctor" | "caretaker";
+
 export interface Device {
   id: string;
   name: string;
@@ -97,31 +101,58 @@ export interface DoctorProfile {
   currentPatientCount: number;
 }
 
+export interface CaretakerProfile {
+  uid: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  relationshipToPatient?: string;
+  experienceYears: number;
+  certified: boolean;
+  availability: CaretakerAvailability;
+  maxPatients: number;
+  currentPatientCount: number;
+}
+
 export interface AssignmentReason {
   score: number;
+  role: CareTeamRole;
   factors: {
-    specializationMatch: boolean;
-    matchedConditions: string[];
+    specializationMatch?: boolean;
+    matchedConditions?: string[];
+    experienceMatch?: boolean;
+    certificationBonus?: number;
     availabilityBonus: number;
     workloadScore: number;
     experienceScore: number;
   };
-  assignedBy: "system" | "manual" | "invitation";
+  assignedBy: "system" | "manual" | "invitation" | "escalation";
   timestamp: Timestamp | Date;
+  escalatedFrom?: string; // If escalated from caretaker to doctor
 }
 
 export interface AssignmentRequest {
   patientId: string;
+  careTeamRole: CareTeamRole; // "doctor" or "caretaker"
   preferredSpecialization?: string;
   urgency?: "routine" | "urgent" | "emergency";
+  autoEscalate?: boolean; // Whether to auto-escalate to doctor if needed
 }
 
 export interface AssignmentResponse {
   success: boolean;
-  doctorId?: string;
-  doctorName?: string;
+  assignedId?: string;
+  assignedName?: string;
+  role?: CareTeamRole;
   reason?: AssignmentReason;
   message?: string;
+}
+
+export interface EscalationCriteria {
+  criticalAlerts: number; // Number of critical alerts that trigger escalation
+  consecutiveWarnings: number; // Consecutive warning status days
+  chronicConditionSeverity: string[]; // Conditions that require doctor oversight
+  patientStatus: "stable" | "warning" | "critical";
 }
 
 export interface DeviceContextValue {

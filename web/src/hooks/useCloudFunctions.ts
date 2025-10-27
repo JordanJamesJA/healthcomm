@@ -52,21 +52,26 @@ interface VerifyMedicalCredentialsResponse {
   message: string;
 }
 
-interface AssignPatientToDoctorRequest {
+interface AssignCareTeamMemberRequest {
   patientId: string;
+  careTeamRole: "doctor" | "caretaker";
   preferredSpecialization?: string;
   urgency?: "routine" | "urgent" | "emergency";
+  autoEscalate?: boolean;
 }
 
-interface AssignPatientToDoctorResponse {
+interface AssignCareTeamMemberResponse {
   success: boolean;
-  doctorId?: string;
-  doctorName?: string;
+  assignedId?: string;
+  assignedName?: string;
+  role?: "doctor" | "caretaker";
   reason?: {
     score: number;
+    role: "doctor" | "caretaker";
     factors: {
-      specializationMatch: boolean;
-      matchedConditions: string[];
+      specializationMatch?: boolean;
+      matchedConditions?: string[];
+      certificationBonus?: number;
       availabilityBonus: number;
       workloadScore: number;
       experienceScore: number;
@@ -77,13 +82,25 @@ interface AssignPatientToDoctorResponse {
   message?: string;
 }
 
-interface UpdateDoctorAvailabilityRequest {
+interface UpdateAvailabilityRequest {
   availability: "available" | "busy" | "offline";
 }
 
-interface UpdateDoctorAvailabilityResponse {
+interface UpdateAvailabilityResponse {
   success: boolean;
   availability: string;
+}
+
+interface EscalateToDoctorRequest {
+  patientId: string;
+  reason?: string;
+}
+
+interface EscalateToDoctorResponse {
+  success: boolean;
+  doctorId?: string;
+  doctorName?: string;
+  message?: string;
 }
 
 /**
@@ -207,25 +224,25 @@ export function useVerifyMedicalCredentials() {
 }
 
 /**
- * Hook for assigning a patient to the best available doctor
+ * Hook for assigning a patient to the best available care team member (doctor or caretaker)
  */
-export function useAssignPatientToDoctor() {
+export function useAssignCareTeamMember() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const assignDoctor = async (data: AssignPatientToDoctorRequest) => {
+  const assignMember = async (data: AssignCareTeamMemberRequest) => {
     setLoading(true);
     setError(null);
 
     try {
-      const callable = httpsCallable<AssignPatientToDoctorRequest, AssignPatientToDoctorResponse>(
+      const callable = httpsCallable<AssignCareTeamMemberRequest, AssignCareTeamMemberResponse>(
         functions,
-        "assignPatientToDoctor"
+        "assignCareTeamMember"
       );
       const result = await callable(data);
       return result.data;
     } catch (err) {
-      const error = err instanceof Error ? err : new Error("Failed to assign doctor");
+      const error = err instanceof Error ? err : new Error(`Failed to assign ${data.careTeamRole}`);
       setError(error);
       throw error;
     } finally {
@@ -233,24 +250,24 @@ export function useAssignPatientToDoctor() {
     }
   };
 
-  return { assignDoctor, loading, error };
+  return { assignMember, loading, error };
 }
 
 /**
- * Hook for updating doctor availability status
+ * Hook for updating care team member availability status (doctors and caretakers)
  */
-export function useUpdateDoctorAvailability() {
+export function useUpdateAvailability() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const updateAvailability = async (data: UpdateDoctorAvailabilityRequest) => {
+  const updateAvailability = async (data: UpdateAvailabilityRequest) => {
     setLoading(true);
     setError(null);
 
     try {
-      const callable = httpsCallable<UpdateDoctorAvailabilityRequest, UpdateDoctorAvailabilityResponse>(
+      const callable = httpsCallable<UpdateAvailabilityRequest, UpdateAvailabilityResponse>(
         functions,
-        "updateDoctorAvailability"
+        "updateAvailability"
       );
       const result = await callable(data);
       return result.data;
@@ -264,6 +281,36 @@ export function useUpdateDoctorAvailability() {
   };
 
   return { updateAvailability, loading, error };
+}
+
+/**
+ * Hook for manually escalating a patient from caretaker to doctor
+ */
+export function useEscalateToDoctor() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const escalate = async (data: EscalateToDoctorRequest) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const callable = httpsCallable<EscalateToDoctorRequest, EscalateToDoctorResponse>(
+        functions,
+        "escalateToDoctor"
+      );
+      const result = await callable(data);
+      return result.data;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error("Failed to escalate to doctor");
+      setError(error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { escalate, loading, error };
 }
 
 /**
