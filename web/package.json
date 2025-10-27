@@ -11,9 +11,13 @@
     "serve": "vite serve"
   },
   "dependencies": {
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/ios": "^7.4.4",
     "@headlessui/react": "^2.2.9",
     "@heroicons/react": "^2.2.0",
     "autoprefixer": "^10.4.21",
+    "capacitor-health": "^7.0.0",
     "firebase": "^12.4.0",
     "lucide-react": "^0.546.0",
     "react": "^18.2.0",
