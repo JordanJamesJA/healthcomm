@@ -65,32 +65,35 @@ export default function DeviceManagement() {
 
   return (
     <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-lg shadow-md p-6`}>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Device Management</h2>
-        <div className="flex gap-2">
+      <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+        <h2 className="text-xl sm:text-2xl font-bold">Device Management</h2>
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={handleRefresh}
-            className={`px-4 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-md transition-colors flex items-center gap-2`}
+            className={`px-2 sm:px-4 py-2 text-xs sm:text-sm ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-md transition-colors flex items-center gap-1 sm:gap-2 whitespace-nowrap`}
             disabled={isRefreshing}
+            aria-label="Refresh devices"
           >
             <svg
-              className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`}
+              className={`w-4 h-4 sm:w-5 sm:h-5 ${isRefreshing ? 'animate-spin' : ''}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2"
+            className="px-2 sm:px-4 py-2 text-xs sm:text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-1 sm:gap-2 whitespace-nowrap"
+            aria-label="Add new device"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
-            Add Device
+            <span className="hidden xs:inline">Add Device</span>
+            <span className="xs:hidden">Add</span>
           </button>
         </div>
       </div>
